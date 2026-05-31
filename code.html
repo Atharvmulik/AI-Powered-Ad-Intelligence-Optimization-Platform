@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>DemoPublisher | The Future of Digital Journalism</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind Theme Config -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "on-primary": "#002a78",
+                "on-primary-container": "#eeefff",
+                "inverse-primary": "#0053db",
+                "secondary-fixed-dim": "#4cd7f6",
+                "surface-variant": "#32343d",
+                "tertiary-fixed-dim": "#d2bbff",
+                "on-secondary-fixed-variant": "#004e5c",
+                "tertiary-fixed": "#eaddff",
+                "background": "#11131b",
+                "surface-container": "#1d1f27",
+                "outline": "#8d90a0",
+                "on-surface": "#e1e2ed",
+                "outline-variant": "#434655",
+                "on-tertiary-fixed-variant": "#5a00c6",
+                "on-error": "#690005",
+                "on-background": "#e1e2ed",
+                "secondary-container": "#03b5d3",
+                "on-tertiary": "#3f008e",
+                "surface-container-low": "#191b23",
+                "inverse-surface": "#e1e2ed",
+                "on-primary-fixed-variant": "#003ea8",
+                "surface-tint": "#b4c5ff",
+                "surface-bright": "#373942",
+                "tertiary": "#d2bbff",
+                "on-tertiary-container": "#f7edff",
+                "on-tertiary-fixed": "#25005a",
+                "surface": "#11131b",
+                "on-secondary-container": "#00424e",
+                "on-secondary": "#003640",
+                "secondary-fixed": "#acedff",
+                "on-surface-variant": "#c3c6d7",
+                "surface-container-high": "#282a32",
+                "surface-container-highest": "#32343d",
+                "surface-dim": "#11131b",
+                "error-container": "#93000a",
+                "error": "#ffb4ab",
+                "inverse-on-surface": "#2e3039",
+                "on-error-container": "#ffdad6",
+                "primary-fixed-dim": "#b4c5ff",
+                "primary-container": "#2563eb",
+                "tertiary-container": "#8343f4",
+                "primary-fixed": "#dbe1ff",
+                "on-secondary-fixed": "#001f26",
+                "primary": "#b4c5ff",
+                "secondary": "#4cd7f6",
+                "surface-container-lowest": "#0c0e16",
+                "on-primary-fixed": "#00174b"
+            },
+            "borderRadius": {
+                "DEFAULT": "0.125rem",
+                "lg": "0.25rem",
+                "xl": "0.5rem",
+                "full": "0.75rem"
+            },
+            "spacing": {
+                "unit": "4px",
+                "section": "96px",
+                "lg": "24px",
+                "sm": "8px",
+                "xs": "4px",
+                "xl": "48px",
+                "md": "16px"
+            },
+            "fontFamily": {
+                "display-md": ["Space Grotesk"],
+                "headline-lg": ["Space Grotesk"],
+                "label-caps": ["Space Grotesk"],
+                "body-lg": ["Inter"],
+                "display-lg": ["Space Grotesk"],
+                "body-md": ["Inter"],
+                "headline-lg-mobile": ["Space Grotesk"],
+                "mono-tag": ["Inter"]
+            },
+            "fontSize": {
+                "display-md": ["48px", {"lineHeight": "1.2", "letterSpacing": "-0.03em", "fontWeight": "700"}],
+                "headline-lg": ["32px", {"lineHeight": "1.3", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                "label-caps": ["12px", {"lineHeight": "1", "letterSpacing": "0.1em", "fontWeight": "600"}],
+                "body-lg": ["18px", {"lineHeight": "1.6", "letterSpacing": "-0.01em", "fontWeight": "400"}],
+                "display-lg": ["72px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700"}],
+                "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                "headline-lg-mobile": ["28px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                "mono-tag": ["11px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "500"}]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        .shimmer { background: linear-gradient(90deg, transparent, rgba(76, 215, 246, 0.1), transparent); background-size: 200% 100%; animation: shimmer 2s infinite linear; }
+        .electric-glow { box-shadow: 0 0 20px rgba(180, 197, 255, 0.2); }
+        .glass { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .progress-bar { height: 2px; width: 0%; transition: width 0.1s; background: linear-gradient(to right, #2563eb, #4cd7f6); }
+        .entry-reveal { opacity: 0; transform: translateY(20px); transition: all 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
+        .entry-reveal.visible { opacity: 1; transform: translateY(0); }
+        .ticker-scroll { display: flex; animation: ticker 40s linear infinite; width: max-content; }
+        @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .parallax-bg { background-attachment: fixed; background-position: center; background-repeat: no-repeat; background-size: cover; }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md overflow-x-hidden selection:bg-secondary/30">
+<!-- Scroll Progress -->
+<div class="fixed top-0 left-0 w-full z-[100]">
+<div class="progress-bar" id="scrollProgress"></div>
+</div>
+<!-- TopNavBar -->
+<nav class="docked full-width top-0 sticky z-50 bg-surface/80 backdrop-blur-md dark:bg-background/80 border-b border-outline-variant/30 shadow-sm backdrop-blur-xl">
+<div class="flex justify-between items-center px-lg py-sm w-full max-w-[1320px] mx-auto">
+<!-- Brand -->
+<div class="flex items-center gap-md">
+<a class="font-display-md text-display-md font-bold tracking-tighter text-on-surface dark:text-on-background flex items-center" href="#">
+                    Demo<span class="text-primary-container">Publisher</span>
+</a>
+<span class="px-xs py-[2px] rounded-full bg-error/10 border border-error/20 text-error flex items-center gap-1 font-mono-tag text-[10px] animate-pulse">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span> LIVE
+                </span>
+</div>
+<!-- Nav Links (Desktop) -->
+<div class="hidden md:flex gap-lg items-center">
+<a class="text-primary dark:text-primary-fixed border-b-2 border-primary pb-1 font-body-md text-body-md" href="#">Tech</a>
+<a class="text-on-surface-variant dark:text-outline hover:text-primary transition-colors font-body-md text-body-md" href="#">Finance</a>
+<a class="text-on-surface-variant dark:text-outline hover:text-primary transition-colors font-body-md text-body-md" href="#">Culture</a>
+<a class="text-on-surface-variant dark:text-outline hover:text-primary transition-colors font-body-md text-body-md" href="#">Innovation</a>
+<a class="text-on-surface-variant dark:text-outline hover:text-primary transition-colors font-body-md text-body-md" href="#">Policy</a>
+</div>
+<!-- Trailing Actions -->
+<div class="flex items-center gap-md">
+<div class="relative group hidden lg:block">
+<input class="bg-surface-container border-outline-variant focus:ring-secondary/50 rounded-full pl-md pr-xl py-xs text-sm w-48 transition-all focus:w-64" placeholder="Search insights..." type="text"/>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline text-md">notifications</span>
+</div>
+<button class="material-symbols-outlined text-on-surface hover:opacity-80 transition-opacity" data-icon="notifications">notifications</button>
+<div class="relative group cursor-pointer flex items-center gap-2 bg-surface-container-high px-sm py-[4px] rounded-full border border-outline-variant/20" id="userSwitcher">
+<div class="w-6 h-6 rounded-full bg-primary-container flex items-center justify-center text-[10px] font-bold text-on-primary">AP</div>
+<span class="font-mono-tag text-[10px] text-outline">ALEX</span>
+</div>
+</div>
+</div>
+</nav>
+<!-- Ad Slot 1: Hero Carousel -->
+<section class="max-w-[1320px] mx-auto mt-md px-lg">
+<div class="h-[280px] w-full rounded-xl overflow-hidden relative group entry-reveal">
+<div class="flex transition-transform duration-700 ease-in-out h-full" id="carouselTrack">
+<!-- Slide 1 (Nike) -->
+<div class="min-w-full relative h-full">
+<img class="w-full h-full object-cover grayscale-[0.2] group-hover:grayscale-0 transition-all duration-500" data-alt="A cinematic, high-fashion photograph of a sleek Nike running shoe suspended in mid-air against a dark, moody background. Neon blue and cyan light leaks slice through the frame, creating a futuristic cyberpunk aesthetic. The lighting is dramatic and directional, highlighting the textures of the fabric and the reflective elements of the design. The overall mood is high-energy, premium, and technologically advanced." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAAkNk_4zneQfYEnqKgkZ1EsEjSsSi3eBPylevXPrnXTKoDQJzZDVSQ9BPEi4WZ57JEqkFvbKJ_VTw5LT2WKRS9smDa6sMSJomKLgNgyRmOtxxbx91Kbsi9m4xEAAman7WoqPixBD2OEa1nMC74rpYBE9sKZdCnmtlN4HKZU2aCX_PHVsYfhM10sFr2t8rR7vnSt2gZKZCX9IgqnM5gfxfjYPMGvDZPsSg52DbQi4iAe_HDGa_8KCY-QvwpG6PE5zS0THYrXkoYS83Z"/>
+<div class="absolute inset-0 bg-gradient-to-r from-background via-transparent to-transparent"></div>
+<div class="absolute inset-0 flex flex-col justify-center px-xl">
+<span class="inline-flex items-center gap-2 px-sm py-xs bg-primary-container text-on-primary-container rounded-full text-[10px] font-bold mb-md w-fit shimmer">
+<span class="material-symbols-outlined text-[12px]">bolt</span> POWERED BY AI
+                        </span>
+<h2 class="font-display-md text-display-md text-white max-w-lg mb-sm">The Evolution of Movement</h2>
+<button class="bg-primary hover:blue_neon text-on-primary font-bold px-lg py-sm rounded-full w-fit transition-all flex items-center gap-md active:scale-95">Explore Collection <span class="material-symbols-outlined">trending_flat</span></button>
+</div>
+</div>
+</div>
+<!-- Indicators -->
+<div class="absolute bottom-md right-md flex gap-sm">
+<span class="w-8 h-1 bg-primary rounded-full"></span>
+<span class="w-8 h-1 bg-white/20 rounded-full"></span>
+<span class="w-8 h-1 bg-white/20 rounded-full"></span>
+</div>
+</div>
+</section>
+<!-- News Ticker -->
+<div class="w-full bg-surface-container-lowest border-y border-outline-variant/10 mt-md overflow-hidden">
+<div class="ticker-scroll py-xs flex gap-xl items-center">
+<span class="flex items-center gap-sm font-mono-tag text-secondary"><span class="w-2 h-2 rounded-full bg-secondary"></span> TECH: NVIDIA ANNOUNCES QUANTUM CHIP BREAKTHROUGH</span>
+<span class="flex items-center gap-sm font-mono-tag text-outline"><span class="w-2 h-2 rounded-full bg-outline"></span> POLICY: GLOBAL AI ACCORD RATIFIED BY 42 NATIONS</span>
+<span class="flex items-center gap-sm font-mono-tag text-secondary"><span class="w-2 h-2 rounded-full bg-secondary"></span> FINANCE: CRYPTO ADOPTION REACHES 1B USERS MILESTONE</span>
+<span class="flex items-center gap-sm font-mono-tag text-outline"><span class="w-2 h-2 rounded-full bg-outline"></span> CULTURE: FIRST AI-GENERATED FILM WINS CANNES SPECIAL JURY PRIZE</span>
+<!-- Duplicate for infinite loop -->
+<span class="flex items-center gap-sm font-mono-tag text-secondary"><span class="w-2 h-2 rounded-full bg-secondary"></span> TECH: NVIDIA ANNOUNCES QUANTUM CHIP BREAKTHROUGH</span>
+<span class="flex items-center gap-sm font-mono-tag text-outline"><span class="w-2 h-2 rounded-full bg-outline"></span> POLICY: GLOBAL AI ACCORD RATIFIED BY 42 NATIONS</span>
+</div>
+</div>
+<!-- Main Layout -->
+<main class="max-w-[1320px] mx-auto px-lg py-xl grid grid-cols-1 lg:grid-cols-10 gap-xl">
+<!-- Left Column (60%) -->
+<div class="lg:col-span-6 flex flex-col gap-xl">
+<!-- Hero Article -->
+<article class="relative group cursor-pointer entry-reveal">
+<div class="aspect-[16/9] rounded-xl overflow-hidden glass border-outline-variant/20 relative">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="A highly detailed 3D abstract visualization of a neural network glowing with neon cyan and violet light pulses on a deep black background. The structure appears architectural and organic, with intricate connections and nodes shimmering as if transmitting data. The lighting is high-contrast with soft glows and a premium glassmorphic feel. The atmosphere is sophisticated and visionary, evoking the complexity of advanced artificial intelligence." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDhAszb0lIpg0VPVO5td46qjrDaPGHlfKlMbaDC8kt5hxDuMNVslR75eM9f0_fSd4D6Ejt7ftk7bsBiJ2CSpjHtE_YHHGvNYZlwlYNqqVfZLADHyj-2nqKPUtbp-Q3ziRSBQXWDfnvgTkFucahFttXPBYc2ekOC4-p0vgvGPXa-DExH2TjbZeE4UPR0-7vhOOsBsIIHEMFCYZa2pTSJm_q-GL3WOOxJ0fIl_nY1lGFrH9nKEFfkHWWrBU-l58SblCK6Eb11IiNkxh6B"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent"></div>
+<div class="absolute bottom-0 left-0 p-xl w-full">
+<span class="px-sm py-xs bg-secondary-container text-on-secondary-container text-[10px] font-bold rounded mb-sm inline-block">INNOVATION</span>
+<h1 class="font-display-md text-display-md text-white mb-md leading-tight group-hover:text-secondary transition-colors">Neural Architecture: The Silent Revolution of 2024</h1>
+<p class="text-on-surface-variant font-body-lg text-body-lg max-w-2xl line-clamp-2">How generative algorithms are rewriting the laws of spatial design and urban planning without human intervention.</p>
+<div class="flex items-center gap-md mt-md text-outline font-mono-tag">
+<span>BY PRIYA SHARMA</span>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<span>12 MIN READ</span>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">visibility</span> 14.2K</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Sub Articles -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-lg">
+<article class="group cursor-pointer entry-reveal" style="transition-delay: 100ms">
+<div class="aspect-video rounded-lg overflow-hidden mb-md border border-outline-variant/10">
+<img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" data-alt="A macro shot of a vintage arcade joystick illuminated by harsh magenta and blue neon lights in a dark, atmospheric room. Dust motes dance in the light rays, creating a nostalgic yet high-fidelity look. The scene is shot with a shallow depth of field, blurring the retro gaming hardware in the background into bokeh circles of vibrant color. The mood is cool, retro-futuristic, and cinematic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCa0j-vijmwl1gghqoouochqIW0o3vYw1zzGH9NHJZEBjgwgSJotp5XYNhVcS1NSuOnyDMrk3cvihy8IrLwrlNjulh_r2lL-FVJr29HHEwk_4mFJTxtUeZgIjSmI-ZByx6GpaMMAeaUTGVRADOipIpfKosT3U9VRlEmXEa5Mdyt3wOyyT1eFLGqElS-THgCuYLLCoDhDBdoWMnlTM-Op5AMBIPnH5_ZDA8F98rts7qYVZgKL_flXp8Cu5YHOyLfJ5g2SeYCfOECPDVU"/>
+</div>
+<span class="text-tertiary-fixed-dim font-mono-tag text-[10px] tracking-widest block mb-2 uppercase">Gaming</span>
+<h3 class="font-headline-lg text-[20px] leading-snug group-hover:text-primary transition-colors">The Haptic Frontier: VR's New Reality</h3>
+</article>
+<article class="group cursor-pointer entry-reveal" style="transition-delay: 150ms">
+<div class="aspect-video rounded-lg overflow-hidden mb-md border border-outline-variant/10">
+<img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" data-alt="A futuristic workspace featuring a holographic interface floating above a minimalist black desk. The room is dimly lit with cool white and teal accents. Sleek metallic hardware and carbon fiber textures are visible in the background. The lighting is soft and diffuse, creating a high-end tech-focused aesthetic. The atmosphere is professional, visionary, and clean." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAz78a83h3E2oiq-PfU8GR8k-RHNaztfvoh8W5qOKGuOhc9mnArK_weVYMu0MjmeCC6WPdvhHbeT4C8V0oKS3_OXmPfe7XwW3hyCYcQFhMEYc6KKilq_zc03IGM_I77w4ivnULyk7X1scnQ9SkcJq8jkyQ1-5dK_naetsUENnSDqm2lGtIpw0zwo3Sw1AZVkulszx8BoEhfqoccTwx-4Y0nlFoWYqMKoW24Gp2E8PIXDIp7w41xpqFtLky9k3uJkg68kPX8tEKfDdDc"/>
+</div>
+<span class="text-secondary-fixed-dim font-mono-tag text-[10px] tracking-widest block mb-2 uppercase">Finance</span>
+<h3 class="font-headline-lg text-[20px] leading-snug group-hover:text-primary transition-colors">Tokenized Real Estate: Why Walls are Digital</h3>
+</article>
+<article class="group cursor-pointer entry-reveal" style="transition-delay: 200ms">
+<div class="aspect-video rounded-lg overflow-hidden mb-md border border-outline-variant/10">
+<img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" data-alt="A breathtaking view of planet Earth from orbit, with deep blue oceans and glowing clusters of city lights visible through wisps of cloud. The sun is just rising over the horizon, casting a thin blue line of atmosphere across the frame. The lighting is cinematic and awe-inspiring, with high contrast between the dark void of space and the vibrant earth. The overall tone is visionary and majestic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDignaZCFMvgNccWBVOwC_5M7zA-MWI4CvtnRgWVg50dV_BP539L2Jmkkhy9wO04NKJ88mA24jbmWomj4nZMeqnRBa5s46bs4byA_8GW07tIi2ZfahAN02wXKZJTTb0emKcs9uZgm4qjuaV8_gvCoVOnifZfF488js6d6uRxvouA4R1jAqzh8sILEb09NQnPSL5Bvy745edp_rIziK3CWtOPLC6Jckr0bmeWhwcXyHV2d3aDrW0DDPUSeSOqIPqt5UDiXN7cMTR_FSO"/>
+</div>
+<span class="text-on-primary-fixed-variant font-mono-tag text-[10px] tracking-widest block mb-2 uppercase">Policy</span>
+<h3 class="font-headline-lg text-[20px] leading-snug group-hover:text-primary transition-colors">Deep Space Mining: The Legal Void</h3>
+</article>
+</div>
+</div>
+<!-- Right Column Sidebar (40%) -->
+<aside class="lg:col-span-4 flex flex-col gap-xl">
+<!-- Ad Slot 2: Vertical Banner -->
+<div class="w-full h-[600px] bg-surface-container-high rounded-xl border border-outline-variant/30 flex flex-col items-center justify-center relative overflow-hidden entry-reveal">
+<div class="absolute inset-0 shimmer opacity-20"></div>
+<div class="z-10 text-center px-lg">
+<span class="font-mono-tag text-outline text-[10px] block mb-lg">ADVERTISEMENT</span>
+<img class="w-48 mx-auto mb-lg rounded-lg shadow-2xl" data-alt="A premium black-and-white commercial shot of a high-end designer watch placed on a dark marble surface. Subtle reflections of soft studio lighting dance across the sapphire glass and metallic link bracelet. The composition is minimalist and elegant, focusing on craftsmanship and luxury. The aesthetic is sophisticated and timeless." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB-wbBrGVJrFZEsFRIqojj8S3u_DK2_LLWjCZxu-elz0zOxH_MwffilZ-uZTTG2SPi3fHFK5wX41Yo27LL81yBK38kF3E9FyR9llykee-vFefQ_IIPdx4v88C25jneH_Tpg9xJkh8AyAfJYuR1buOJ4Jif0O2tDo_XWwupid8am5VMoCYo7sj3-fU_9rt_ZneNpb9mbGB4gO0cCJeX2XfKVaOsgRs5yHFgntiGUl4Qd_qQyYssFk8zrj3xGxUa0U9UmyKsGzDWlXlkQ"/>
+<h4 class="font-headline-lg text-white mb-md">Master the Seconds.</h4>
+<p class="text-outline text-sm mb-xl">The 2024 Collection has arrived.</p>
+<button class="w-full border border-secondary text-secondary hover:bg-secondary/10 py-sm rounded-full font-bold transition-all">DISCOVER NOW</button>
+</div>
+</div>
+<!-- Trending Now -->
+<section class="bg-surface-container p-lg rounded-xl border border-outline-variant/10">
+<div class="flex justify-between items-center mb-xl">
+<h2 class="font-headline-lg text-[20px] flex items-center gap-sm"><span class="material-symbols-outlined text-secondary">trending_up</span> Trending Now</h2>
+<span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+</div>
+<div class="space-y-lg">
+<div class="group cursor-pointer">
+<div class="flex items-center justify-between mb-xs">
+<span class="font-mono-tag text-outline">01</span>
+<div class="flex gap-[2px]">
+<div class="w-1 h-3 bg-secondary rounded-full"></div>
+<div class="w-1 h-4 bg-secondary rounded-full"></div>
+<div class="w-1 h-2 bg-secondary rounded-full"></div>
+</div>
+</div>
+<h4 class="font-bold text-on-surface group-hover:text-secondary transition-colors line-clamp-2">Why 2024 is the year for decentralized social networks.</h4>
+</div>
+<div class="h-px bg-outline-variant/10"></div>
+<div class="group cursor-pointer">
+<div class="flex items-center justify-between mb-xs">
+<span class="font-mono-tag text-outline">02</span>
+<div class="flex gap-[2px]">
+<div class="w-1 h-2 bg-secondary/50 rounded-full"></div>
+<div class="w-1 h-3 bg-secondary/50 rounded-full"></div>
+<div class="w-1 h-1 bg-secondary/50 rounded-full"></div>
+</div>
+</div>
+<h4 class="font-bold text-on-surface group-hover:text-secondary transition-colors line-clamp-2">How quantum computing is breaking standard encryption.</h4>
+</div>
+<div class="h-px bg-outline-variant/10"></div>
+<div class="group cursor-pointer">
+<div class="flex items-center justify-between mb-xs">
+<span class="font-mono-tag text-outline">03</span>
+<div class="flex gap-[2px]">
+<div class="w-1 h-1 bg-secondary/30 rounded-full"></div>
+<div class="w-1 h-2 bg-secondary/30 rounded-full"></div>
+<div class="w-1 h-1 bg-secondary/30 rounded-full"></div>
+</div>
+</div>
+<h4 class="font-bold text-on-surface group-hover:text-secondary transition-colors line-clamp-2">Future of work: The 4-day week experiment results.</h4>
+</div>
+</div>
+</section>
+</aside>
+</main>
+<!-- Ad Slot 3: Mid-Page Banner -->
+<section class="w-full bg-surface-container-high py-xl my-xl border-y border-outline-variant/20 relative overflow-hidden">
+<div class="max-w-[1320px] mx-auto px-lg flex flex-col md:flex-row items-center justify-between gap-xl relative z-10">
+<div class="max-w-xl">
+<span class="inline-block px-sm py-[2px] bg-primary/20 text-primary font-mono-tag text-[10px] rounded mb-md">TARGETED PARTNER CONTENT</span>
+<h2 class="font-display-md text-display-md text-white mb-md">Designing the Future of SaaS with Adobe GenStudio.</h2>
+<p class="text-on-surface-variant mb-lg">See how leading enterprises are automating their content supply chain using generative AI tools integrated into their workflow.</p>
+<div class="flex items-center gap-xl">
+<button class="bg-white text-black font-bold px-lg py-sm rounded-full hover:bg-on-surface transition-colors">Watch Demo</button>
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-full border border-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-md">analytics</span>
+</div>
+<div>
+<p class="text-[10px] text-outline uppercase font-mono-tag">Predicted CTR</p>
+<p class="font-display-md text-primary text-[20px]">4.82%</p>
+</div>
+</div>
+</div>
+</div>
+<div class="w-full md:w-[400px] h-[250px] rounded-xl overflow-hidden shadow-2xl rotate-3 hover:rotate-0 transition-transform duration-500 glass">
+<img class="w-full h-full object-cover" data-alt="A futuristic, vibrant abstract 3D render with fluid shapes in cyan, magenta, and purple, featuring a metallic sheen and glassy transparency. The composition is dynamic and flowing, with soft light reflections and a premium tech-focused aesthetic. The background is a clean dark neutral, making the colors pop. It evokes creativity, high-speed data, and modern digital art." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBQiQz3FDsz2dZUW6zzInHamUfpNQDKEvjwHUEWFbumrDgZmdHIjU2bejvKeHCEA2Geaq69ML5afGQ-jP3tkcA-Ko5jIlvHEGg8RHdXxFjJKuMOqQ8CKaSjV9z9bVxI-TWqhYmiOnc9uDlLFF0P1loncSNL8U9sC0lGUCGSSs7IM34nAPazMhF1ZmXQEXwPbQGwa0KDVf15Qaos4CLWCn0AMSfd2pAWipO8hsrnPAWOlv0mFyJOTYFTDvRG2GDbJqP9gI-vX52jmPSL"/>
+</div>
+</div>
+<!-- Background Elements -->
+<div class="absolute -top-24 -left-24 w-96 h-96 bg-primary/5 rounded-full blur-[100px]"></div>
+<div class="absolute -bottom-24 -right-24 w-96 h-96 bg-secondary/5 rounded-full blur-[100px]"></div>
+</section>
+<!-- Latest Articles Grid -->
+<section class="max-w-[1320px] mx-auto px-lg py-xl">
+<h2 class="font-display-md text-headline-lg mb-xl flex items-center justify-between">
+            Latest Insights
+            <a class="text-primary text-sm flex items-center gap-xs font-bold hover:underline" href="#">View All <span class="material-symbols-outlined text-md">arrow_forward</span></a>
+</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-lg">
+<!-- Grid Card 1 -->
+<div class="group cursor-pointer entry-reveal">
+<div class="aspect-square rounded-xl overflow-hidden mb-md relative border border-outline-variant/20">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A sleek, ultra-modern silver laptop resting on a minimalist dark wood desk. The screen is illuminated with a vibrant data visualization dashboard in neon greens and blues. The surrounding environment is a high-end, softly lit creative studio with designer furniture. The atmosphere is professional, calm, and technologically advanced." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBaivFx8ruAvgX9gp3IXWB8wA-Kcz63uH74T3cVwJEKrGrIMTPsh9jJZzxylwhUAfaUxSDMCefoaQArbi63hd0p2_1Gbc2H9TNQEGyhIl5D965L3aUobEavNdeQUSqmSgpGlYqeQnPr-vFCVHzw-0r0GttrSVvwPa3xiL-2sMb0oo_bUlKtOBsIv7R6mmRjIesBxONXqT_Lc1Mmyvf4NaGHzmjrahWkTaScTeDoOKtxvrlg7BQRKky74q_fnvqxGc-YXm8rq3IbgKKU"/>
+<div class="absolute top-md right-md px-sm py-[2px] bg-background/80 backdrop-blur-md rounded-full text-[10px] font-bold text-white uppercase font-mono-tag">Tech</div>
+</div>
+<h4 class="font-headline-lg text-[18px] mb-xs group-hover:text-primary transition-colors">The Silicon Scarcity: Global Update</h4>
+<p class="text-outline text-sm line-clamp-2">Analyzing the geopolitical impact of the latest semiconductor trade restrictions between East and West.</p>
+</div>
+<!-- Grid Card 2 -->
+<div class="group cursor-pointer entry-reveal" style="transition-delay: 50ms">
+<div class="aspect-square rounded-xl overflow-hidden mb-md relative border border-outline-variant/20">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A cascading waterfall of digital code in vibrant green and blue falling through a 3D space, similar to a digital rain effect but with high-fidelity textures and glowing light trails. The background is a pitch-black void. The lighting is high-contrast and dramatic, creating a sense of depth and mystery. The aesthetic is purely cyberpunk and technologically complex." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9EUbVKo6ZYFxUzmQderjfoO6Jjl1j2_fkO2oSE2zt36vNhZTT8wnCd4gJ3zqR9V0mdHTnsVeliQsogT0eFRG6UvrK8FWgkLpx63VRBmhdCWrCCFHygXEjHcG3r1RX3rHhRyUxjoXJkCf85PkNxrFxA-K6iIBV7B_xAVozfqnzlBOWtLs9zE8aIEDFFW-BgMuvrITrhjDQxbAlIvniKDcQQy60X29YfUKqMBFT3_F5Chf_7Cm68HjU46F2jqam2p26Y7RYWSJQy7Di"/>
+<div class="absolute top-md right-md px-sm py-[2px] bg-background/80 backdrop-blur-md rounded-full text-[10px] font-bold text-white uppercase font-mono-tag">Security</div>
+</div>
+<h4 class="font-headline-lg text-[18px] mb-xs group-hover:text-primary transition-colors">Zero-Trust: The New Baseline</h4>
+<p class="text-outline text-sm line-clamp-2">Why perimeter security is dead and how identity-based protocols are securing the modern enterprise.</p>
+</div>
+<!-- Grid Card 3 -->
+<div class="group cursor-pointer entry-reveal" style="transition-delay: 100ms">
+<div class="aspect-square rounded-xl overflow-hidden mb-md relative border border-outline-variant/20">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A futuristic close-up of a human hand interacting with a floating digital interface. Glowing light geometric patterns are projected onto the skin. The background is a soft-focus laboratory or high-tech office in cool blue tones. The mood is optimistic, visionary, and high-fidelity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBVsUmbQHIafXL_c3tJFkS3FqdEJpwORKd-IuwAA22dhSqeYZ7b0UfvKVt2pmbmav-AibptGLc_IuR2v5TA_uN6a_C0szZd7ucdWpoZz_XZsvQInOtpl-Zmgqt-7O37uMTznnbSUl6TSNei8TDTK_Fb-k0vE6aWdyJUNYvzNuVSoXfplvB7CnJr1BfgowcJbvs4dv3klhZWeKRIxprotvwzDlgi6A1coQwdEli0bj6qnZtr99SWdqt0vaOL5zST3A18d0LMnFSdBaOl"/>
+<div class="absolute top-md right-md px-sm py-[2px] bg-background/80 backdrop-blur-md rounded-full text-[10px] font-bold text-white uppercase font-mono-tag">Innovation</div>
+</div>
+<h4 class="font-headline-lg text-[18px] mb-xs group-hover:text-primary transition-colors">Biometric Auth 2.0</h4>
+<p class="text-outline text-sm line-clamp-2">Moving beyond fingerprints: How vascular mapping and heartbeat signatures are replacing passwords.</p>
+</div>
+<!-- Grid Card 4 -->
+<div class="group cursor-pointer entry-reveal" style="transition-delay: 150ms">
+<div class="aspect-square rounded-xl overflow-hidden mb-md relative border border-outline-variant/20">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="An artistic high-angle shot of a minimalist modern building with sharp geometric angles and glass facades. The lighting is early morning sun, creating long, clean shadows and reflecting a clear blue sky. The aesthetic is sophisticated, architectural, and clean. The mood is serene and professional." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDmgdaylPEYqtsFrvsgCetl1o2kicsPrucvzPlr5CGNjU2c3AEppokaxZCdk1Uh8uqh1TiLSmKbZ7bVYPSX9x-Ho6FbKwyvd6VGaWpBRXXubuw8QI2NZ13jsD1WfnZHI9SLSOtaCp6MxtlhfUTuC4lQmxWnI8lNAONb_NfwJ6lNhmov88Ev55KFYwX8COxUl6Ic_Pvf3kMWz5YcxWv8i1BmppJzpk745UXWzLs6o65Z5WvJWwh-p91DxdfWMC6nDkCvl4P-lQa8sLGv"/>
+<div class="absolute top-md right-md px-sm py-[2px] bg-background/80 backdrop-blur-md rounded-full text-[10px] font-bold text-white uppercase font-mono-tag">Culture</div>
+</div>
+<h4 class="font-headline-lg text-[18px] mb-xs group-hover:text-primary transition-colors">Minimalism in the Age of AI</h4>
+<p class="text-outline text-sm line-clamp-2">As machine-generated noise increases, human designers are retreating to high-fidelity essentialism.</p>
+</div>
+</div>
+</section>
+<!-- Ad Slot 4: Bottom Parallax -->
+<section class="w-full h-[400px] relative mt-xl group overflow-hidden">
+<div class="absolute inset-0 parallax-bg" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAykStljBbTBSL782AZoBOuC4NKseUISp_Ml5dul8nuIFTYfN84ql3ZbLTw5W9fczcvZQApXn8je91NLgJMeC7Duj25HDLyJVN38G8FGsmmx3I6CRSwlH5DwaVFkgOsOhAF68vlJxWzodB8kFMIMsOnKnJK6F8609zCz6EW5g_-hmyHD3MynfnagE8Ef72eRXWkc5_lhmkIpKSQm1_VB3MOyHTxcoxcxpLs_1zfH2cgkv5HhJjafoDCWPHGawOrvVYGSCX7zeRVj72c')"></div>
+<div class="absolute inset-0 bg-background/60 backdrop-blur-sm group-hover:backdrop-blur-0 transition-all duration-700"></div>
+<div class="relative h-full flex flex-col items-center justify-center text-center px-lg">
+<span class="font-mono-tag text-secondary text-xs mb-md tracking-[0.3em]">REACH 12.5M VISIONARIES</span>
+<h2 class="font-display-md text-display-md text-white mb-lg">Your brand, powered by predictive intelligence.</h2>
+<div class="flex flex-wrap justify-center gap-md">
+<div class="glass px-lg py-md rounded-xl text-left border border-white/10">
+<p class="font-mono-tag text-outline text-[10px] uppercase">Avg engagement</p>
+<p class="font-display-md text-primary text-[24px]">14.2%</p>
+</div>
+<div class="glass px-lg py-md rounded-xl text-left border border-white/10">
+<p class="font-mono-tag text-outline text-[10px] uppercase">Ad Relevancy</p>
+<p class="font-display-md text-secondary text-[24px]">98.1</p>
+</div>
+<div class="glass px-lg py-md rounded-xl text-left border border-white/10">
+<p class="font-mono-tag text-outline text-[10px] uppercase">Audience Trust</p>
+<p class="font-display-md text-tertiary text-[24px]">High</p>
+</div>
+</div>
+<button class="mt-xl bg-primary text-on-primary font-black px-xl py-md rounded-full hover:scale-105 active:scale-95 transition-transform flex items-center gap-md">
+                PARTNER WITH US <span class="material-symbols-outlined">launch</span>
+</button>
+</div>
+</section>
+<!-- Footer -->
+<footer class="full-width bottom-0 bg-surface-container-lowest dark:bg-surface-container-lowest border-t border-outline-variant/20">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-xl px-lg py-xl w-full max-w-[1320px] mx-auto">
+<div class="md:col-span-1">
+<a class="font-headline-lg text-headline-lg font-black text-on-surface flex items-center mb-md" href="#">
+                    Demo<span class="text-primary-container">Publisher</span>
+</a>
+<p class="text-on-surface-variant text-sm mb-lg">Bridging the gap between traditional editorial authority and futuristic technology.</p>
+<div class="flex gap-md">
+<button class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface hover:text-primary transition-colors"><span class="material-symbols-outlined text-[18px]">public</span></button>
+<button class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface hover:text-primary transition-colors"><span class="material-symbols-outlined text-[18px]">share</span></button>
+<button class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface hover:text-primary transition-colors"><span class="material-symbols-outlined text-[18px]">mail</span></button>
+</div>
+</div>
+<div>
+<h5 class="font-bold text-on-surface mb-lg">Navigation</h5>
+<ul class="space-y-md font-body-md text-body-md">
+<li><a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#">About Us</a></li>
+<li><a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#">Masthead</a></li>
+<li><a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#">Editorial Guidelines</a></li>
+<li><a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#">Careers</a></li>
+</ul>
+</div>
+<div>
+<h5 class="font-bold text-on-surface mb-lg">Legal</h5>
+<ul class="space-y-md font-body-md text-body-md">
+<li><a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#">Privacy Policy</a></li>
+<li><a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#">Terms of Service</a></li>
+<li><a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#">Cookie Settings</a></li>
+</ul>
+</div>
+<div>
+<h5 class="font-bold text-on-surface mb-lg">Ad Intelligence</h5>
+<p class="text-sm text-outline mb-md">Real-time transparency for partners and readers.</p>
+<button class="text-primary underline font-body-md text-body-md flex items-center gap-xs">Advertise With Us <span class="material-symbols-outlined text-[14px]">arrow_outward</span></button>
+<div class="mt-xl p-md bg-surface-container rounded-lg border border-outline-variant/10">
+<p class="text-[10px] text-outline mb-xs uppercase font-mono-tag">Powered By</p>
+<p class="font-bold text-white tracking-widest text-xs">PREDICTIVE ANALYTICS v4.0</p>
+</div>
+</div>
+</div>
+<div class="border-t border-outline-variant/10 py-lg px-lg text-center">
+<p class="text-outline text-xs">© 2024 DemoPublisher. All rights reserved. Built for the future of journalism.</p>
+</div>
+</footer>
+<!-- Live AI Tracking Panel -->
+<div class="fixed bottom-lg right-lg w-72 glass rounded-xl border border-primary/20 p-md z-[60] entry-reveal shadow-2xl overflow-hidden" id="sdkPanel">
+<div class="absolute top-0 left-0 w-full h-[2px] bg-primary/30"></div>
+<div class="flex items-center justify-between mb-md">
+<div class="flex items-center gap-sm">
+<span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+<span class="font-mono-tag text-[10px] text-white">TRACKING SDK v1.0</span>
+</div>
+<button class="material-symbols-outlined text-outline text-sm hover:text-white" onclick="document.getElementById('sdkPanel').classList.add('translate-y-[200%]')">close</button>
+</div>
+<div class="space-y-sm max-h-48 overflow-y-auto pr-sm custom-scrollbar" id="eventLogs">
+<!-- Dynamic Logs -->
+<div class="text-[10px] font-mono leading-tight border-l border-outline-variant pl-md py-xs">
+<span class="text-outline">[14:22:01]</span> <span class="text-secondary">SESSION_START</span> <span class="text-white">ID: ax-0912</span>
+</div>
+<div class="text-[10px] font-mono leading-tight border-l border-outline-variant pl-md py-xs">
+<span class="text-outline">[14:22:05]</span> <span class="text-tertiary">IMP_LOAD</span> <span class="text-white">SLOT_01_HERO</span>
+</div>
+</div>
+<div class="mt-md pt-md border-t border-outline-variant/20 flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-[8px] text-outline uppercase font-mono-tag">Predictive CTR</span>
+<span class="text-sm font-bold text-secondary">0.024% ↑</span>
+</div>
+<div class="flex flex-col text-right">
+<span class="text-[8px] text-outline uppercase font-mono-tag">Personalization</span>
+<span class="text-sm font-bold text-primary">Active</span>
+</div>
+</div>
+</div>
+<!-- SDK Interaction Script -->
+<script>
+        // Scroll Progress
+        window.addEventListener('scroll', () => {
+            const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+            const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+            const scrolled = (winScroll / height) * 100;
+            document.getElementById('scrollProgress').style.width = scrolled + "%";
+        });
+
+        // SDK Event Logger Simulation
+        const logs = document.getElementById('eventLogs');
+        const eventTypes = ['HOVER_CARD', 'CLICK_AD', 'VIEW_PORT_75', 'SCROLL_DEPTH_50', 'USER_FOCUS_ON_TECH'];
+        const colors = ['text-secondary', 'text-tertiary', 'text-primary', 'text-on-secondary-fixed-variant', 'text-error'];
+
+        function addLog(type) {
+            const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
+            const logEntry = document.createElement('div');
+            logEntry.className = 'text-[10px] font-mono leading-tight border-l border-outline-variant pl-md py-xs transition-all duration-300 opacity-0 translate-x-2';
+            logEntry.innerHTML = `<span class="text-outline">[${time}]</span> <span class="${colors[Math.floor(Math.random() * colors.length)]}">${type}</span> <span class="text-white">CAPTURED</span>`;
+            logs.insertBefore(logEntry, logs.firstChild);
+            setTimeout(() => {
+                logEntry.classList.remove('opacity-0', 'translate-x-2');
+            }, 50);
+            if(logs.children.length > 20) logs.lastChild.remove();
+        }
+
+        setInterval(() => {
+            if(Math.random() > 0.7) addLog(eventTypes[Math.floor(Math.random() * eventTypes.length)]);
+        }, 3000);
+
+        // Intersection Observer for Reveal Animations
+        const observerOptions = { threshold: 0.1 };
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.entry-reveal').forEach(el => observer.observe(el));
+
+        // Hover Tracking for SDK
+        document.querySelectorAll('article, .group').forEach(el => {
+            el.addEventListener('mouseenter', () => addLog('HOVER_ENTITY'));
+        });
+
+        // Carousel Simulation (Simplified)
+        let currentSlide = 0;
+        const track = document.getElementById('carouselTrack');
+        setInterval(() => {
+            // In a real app we'd cycle slides here
+            // track.style.transform = `translateX(-${(currentSlide + 1) * 100}%)`;
+        }, 5000);
+    </script>
+</body></html>

@@ -341,7 +341,7 @@ export default function Campaigns() {
             </div>
 
             {/* Avg Inference Latency */}
-            <div className="p-3 bg-surface-container rounded-lg border-l-4 border-tertiary">
+            {/* <div className="p-3 bg-surface-container rounded-lg border-l-4 border-tertiary">
               <div className="flex justify-between items-start mb-2">
                 <p className="text-xs font-label-md text-on-surface-variant uppercase tracking-wider">Inference Latency</p>
                 <div className="flex gap-[2px] items-end h-6">
@@ -352,7 +352,7 @@ export default function Campaigns() {
               </div>
               <p className="text-2xl font-bold text-tertiary">{avgLatency}ms</p>
               <p className="text-[10px] text-on-surface-variant mt-1">XGBoost + Isolation Forest inference</p>
-            </div>
+            </div> */}
           </div>
         </div>
       </section>
@@ -453,7 +453,11 @@ export default function Campaigns() {
                 </div>
               </div>
             </div>
+
+            
           </div>
+
+          
 
           {/* Campaign Card 2 - Back to School */}
           <div className="bg-surface-container-low border border-outline-variant rounded-xl p-5 hover:border-primary/50 transition-all group">

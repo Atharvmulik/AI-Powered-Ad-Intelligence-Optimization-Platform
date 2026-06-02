@@ -8,6 +8,8 @@ export default function AdManagement() {
   const [tags, setTags] = useState(['Gen-Z', 'Urban Commuters', 'Tech Early Adopters'])
   const [newTagInput, setNewTagInput] = useState('')
   const [showAddTag, setShowAddTag] = useState(false)
+  const [tagAutocompleteSuggestions, setTagAutocompleteSuggestions] = useState([])
+  const [tagValidationError, setTagValidationError] = useState('')
 
   // Real-time log terminal state
   const [logs, setLogs] = useState([
@@ -25,6 +27,29 @@ export default function AdManagement() {
     { type: 'COMPLIANCE:', msg: 'Auto-flagged campaign Titan Smart for CTR anomaly.' },
     { type: 'INTELLIGENCE:', msg: 'Determined high CTR correlation with target "Solo Travelers".' }
   ]
+
+  // New state variables for the form
+  const [adFormat, setAdFormat] = useState('Banner')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [bidStrategy, setBidStrategy] = useState('CPC')
+  const [adCategory, setAdCategory] = useState('Technology')
+  const [keywords, setKeywords] = useState([])
+  const [newKeywordInput, setNewKeywordInput] = useState('')
+  const [showKeywordInput, setShowKeywordInput] = useState(false)
+  const [campaignTitle, setCampaignTitle] = useState('')
+  const [dailyBudget, setDailyBudget] = useState('')
+  const [dateError, setDateError] = useState('')
+
+  // Allowed audience tags list
+  const allowedAudienceTags = [
+    'Gen-Z', 'Millennials', 'Urban Commuters', 'Tech Early Adopters', 'Sports Enthusiasts',
+    'Gamers', 'Parents', 'Students', 'Professionals', 'High-Income', 'Budget-Conscious',
+    'Mobile Users', 'Desktop Users', 'Night Owls', 'Weekend Shoppers'
+  ]
+
+  // Predefined suggestions for keywords
+  const keywordSuggestions = ['performance', 'lifestyle', 'premium', 'sale', 'new arrival', 'trending', 'limited edition']
 
   useEffect(() => {
     // Animate circular gauge ring on mount
@@ -53,17 +78,100 @@ export default function AdManagement() {
     }
   }, [logs])
 
-  const handleAddTag = (e) => {
-    e.preventDefault()
-    if (newTagInput.trim() && !tags.includes(newTagInput.trim())) {
-      setTags([...tags, newTagInput.trim()])
-      setNewTagInput('')
-      setShowAddTag(false)
+  // Filter autocomplete suggestions based on input
+  useEffect(() => {
+    if (newTagInput.trim()) {
+      const filtered = allowedAudienceTags.filter(tag =>
+        tag.toLowerCase().includes(newTagInput.toLowerCase())
+      )
+      setTagAutocompleteSuggestions(filtered.slice(0, 5))
+    } else {
+      setTagAutocompleteSuggestions([])
+    }
+  }, [newTagInput])
+
+  // Validate dates
+  useEffect(() => {
+    if (startDate && endDate) {
+      if (new Date(endDate) < new Date(startDate)) {
+        setDateError('End date must be after start date')
+      } else {
+        setDateError('')
+      }
+    } else {
+      setDateError('')
+    }
+  }, [startDate, endDate])
+
+  const handleAddTag = (tagToAdd) => {
+    const trimmedTag = tagToAdd.trim()
+    if (trimmedTag && !tags.includes(trimmedTag)) {
+      if (allowedAudienceTags.includes(trimmedTag)) {
+        setTags([...tags, trimmedTag])
+        setNewTagInput('')
+        setShowAddTag(false)
+        setTagValidationError('')
+        setTagAutocompleteSuggestions([])
+      } else {
+        setTagValidationError('Please select a valid audience segment')
+      }
     }
   }
 
   const handleRemoveTag = (tagToRemove) => {
     setTags(tags.filter(t => t !== tagToRemove))
+  }
+
+  const handleAddKeyword = (keywordToAdd) => {
+    const trimmedKeyword = keywordToAdd.trim()
+    if (trimmedKeyword && !keywords.includes(trimmedKeyword)) {
+      setKeywords([...keywords, trimmedKeyword])
+      setNewKeywordInput('')
+      setShowKeywordInput(false)
+    }
+  }
+
+  const handleRemoveKeyword = (keywordToRemove) => {
+    setKeywords(keywords.filter(k => k !== keywordToRemove))
+  }
+
+  const handleDiscardDraft = () => {
+    setCampaignTitle('')
+    setDailyBudget('')
+    setAdFormat('Banner')
+    setStartDate('')
+    setEndDate('')
+    setBidStrategy('CPC')
+    setAdCategory('Technology')
+    setKeywords([])
+    setTags(['Gen-Z', 'Urban Commuters', 'Tech Early Adopters'])
+    setShowAddTag(false)
+    setShowKeywordInput(false)
+    setNewTagInput('')
+    setNewKeywordInput('')
+    setTagValidationError('')
+  }
+
+  // Calculate duration in days
+  const getDurationInDays = () => {
+    if (startDate && endDate && !dateError) {
+      const start = new Date(startDate)
+      const end = new Date(endDate)
+      const diffTime = Math.abs(end.getTime() - start.getTime())
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      return diffDays
+    }
+    return null
+  }
+
+  // Check if deploy button should be disabled
+  const isDeployDisabled = () => {
+    if (!campaignTitle.trim()) return true
+    if (!dailyBudget || parseFloat(dailyBudget) === 0) return true
+    if (tags.length === 0) return true
+    if (!startDate || !endDate) return true
+    if (dateError) return true
+    return false
   }
 
   return (
@@ -290,6 +398,8 @@ export default function AdManagement() {
                     className="w-full bg-surface-container-lowest border-outline-variant border rounded-lg py-3 px-4 focus:ring-2 focus:ring-primary focus:outline-none text-on-surface"
                     placeholder="e.g. Winter Performance Boost"
                     type="text"
+                    value={campaignTitle}
+                    onChange={(e) => setCampaignTitle(e.target.value)}
                   />
                 </div>
                 <div className="col-span-2 md:col-span-1 space-y-2">
@@ -300,9 +410,86 @@ export default function AdManagement() {
                       className="w-full bg-surface-container-lowest border-outline-variant border rounded-lg py-3 pl-8 pr-4 focus:ring-2 focus:ring-primary focus:outline-none text-on-surface"
                       placeholder="0.00"
                       type="number"
+                      value={dailyBudget}
+                      onChange={(e) => setDailyBudget(e.target.value)}
                     />
                   </div>
                 </div>
+
+                {/* CHANGE 1: Ad Format selector */}
+                <div className="col-span-2 space-y-2">
+                  <label className="text-label-md text-on-surface-variant">Ad Format</label>
+                  <div className="flex gap-3">
+                    {['Banner', 'Video', 'Native'].map((format) => (
+                      <button
+                        key={format}
+                        type="button"
+                        onClick={() => setAdFormat(format)}
+                        className={`flex-1 py-2.5 rounded-lg font-medium transition-all ${
+                          adFormat === format
+                            ? 'bg-primary text-on-primary-container shadow-lg shadow-primary/20'
+                            : 'bg-surface-container-high text-on-surface-variant border border-outline-variant hover:bg-surface-bright'
+                        }`}
+                      >
+                        {format}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* CHANGE 2: Campaign date range */}
+                <div className="col-span-2 space-y-2">
+                  <label className="text-label-md text-on-surface-variant">Campaign Duration</label>
+                  <div className="flex gap-4">
+                    <div className="flex-1 space-y-1">
+                      <span className="text-xs text-on-surface-variant">Start Date</span>
+                      <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-full bg-surface-container-lowest border-outline-variant border rounded-lg py-2 px-3 focus:ring-2 focus:ring-primary focus:outline-none text-on-surface"
+                      />
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <span className="text-xs text-on-surface-variant">End Date</span>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="w-full bg-surface-container-lowest border-outline-variant border rounded-lg py-2 px-3 focus:ring-2 focus:ring-primary focus:outline-none text-on-surface"
+                      />
+                    </div>
+                  </div>
+                  {dateError && <p className="text-red-400 text-xs mt-1">{dateError}</p>}
+                </div>
+
+                {/* CHANGE 3: Bid Strategy selector */}
+                <div className="col-span-2 space-y-2">
+                  <label className="text-label-md text-on-surface-variant">Bid Strategy</label>
+                  <div className="flex gap-3">
+                    {[
+                      { value: 'CPC', subtitle: 'Per Click' },
+                      { value: 'CPM', subtitle: 'Per 1,000 Impressions' },
+                      { value: 'CPA', subtitle: 'Per Action' }
+                    ].map((strategy) => (
+                      <button
+                        key={strategy.value}
+                        type="button"
+                        onClick={() => setBidStrategy(strategy.value)}
+                        className={`flex-1 py-2 rounded-lg font-medium transition-all flex flex-col items-center ${
+                          bidStrategy === strategy.value
+                            ? 'bg-primary text-on-primary-container shadow-lg shadow-primary/20'
+                            : 'bg-surface-container-high text-on-surface-variant border border-outline-variant hover:bg-surface-bright'
+                        }`}
+                      >
+                        <span>{strategy.value}</span>
+                        <span className="text-[10px] opacity-70">{strategy.subtitle}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Target Audience Tags with validation and autocomplete */}
                 <div className="col-span-2 space-y-2">
                   <label className="text-label-md text-on-surface-variant">Target Audience Tags</label>
                   <div className="flex flex-wrap gap-2 p-3 bg-surface-container-lowest border border-outline-variant rounded-lg items-center">
@@ -318,26 +505,39 @@ export default function AdManagement() {
                       </span>
                     ))}
                     {showAddTag ? (
-                      <div className="flex items-center gap-1">
+                      <div className="relative flex-1">
                         <input
                           autoFocus
-                          className="bg-surface-container-high border border-outline-variant text-xs text-on-surface rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary w-28"
-                          placeholder="Tag name..."
+                          className="bg-surface-container-high border border-outline-variant text-xs text-on-surface rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                          placeholder="Search audience segment..."
                           type="text"
                           value={newTagInput}
                           onChange={(e) => setNewTagInput(e.target.value)}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleAddTag(e)
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              if (tagAutocompleteSuggestions.length > 0) {
+                                handleAddTag(tagAutocompleteSuggestions[0])
+                              } else {
+                                handleAddTag(newTagInput)
+                              }
+                            }
                             if (e.key === 'Escape') setShowAddTag(false)
                           }}
                         />
-                        <button
-                          className="text-xs text-primary hover:text-white"
-                          type="button"
-                          onClick={handleAddTag}
-                        >
-                          Add
-                        </button>
+                        {tagAutocompleteSuggestions.length > 0 && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-surface-container-high border border-outline-variant rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                            {tagAutocompleteSuggestions.map((suggestion) => (
+                              <div
+                                key={suggestion}
+                                className="px-3 py-2 text-xs text-on-surface hover:bg-surface-bright cursor-pointer"
+                                onClick={() => handleAddTag(suggestion)}
+                              >
+                                {suggestion}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <button
@@ -349,7 +549,88 @@ export default function AdManagement() {
                       </button>
                     )}
                   </div>
+                  {tagValidationError && <p className="text-red-400 text-xs mt-1">{tagValidationError}</p>}
                 </div>
+
+                {/* CHANGE 4: Ad Category and Keywords */}
+                <div className="col-span-2 space-y-2">
+                  <div className="flex gap-4">
+                    <div className="w-2/5 space-y-1">
+                      <label className="text-label-md text-on-surface-variant">Ad Category</label>
+                      <select
+                        value={adCategory}
+                        onChange={(e) => setAdCategory(e.target.value)}
+                        className="w-full bg-surface-container-lowest border-outline-variant border rounded-lg py-3 px-4 focus:ring-2 focus:ring-primary focus:outline-none text-on-surface"
+                      >
+                        <option>Technology</option>
+                        <option>Sports & Fitness</option>
+                        <option>Fashion & Lifestyle</option>
+                        <option>Food & Beverage</option>
+                        <option>Finance</option>
+                        <option>Gaming</option>
+                        <option>Travel</option>
+                        <option>Health & Wellness</option>
+                        <option>Automotive</option>
+                        <option>Education</option>
+                      </select>
+                    </div>
+                    <div className="w-3/5 space-y-1">
+                      <label className="text-label-md text-on-surface-variant">Keywords</label>
+                      <div className="flex flex-wrap gap-2 p-2 bg-surface-container-lowest border border-outline-variant rounded-lg items-center min-h-[52px]">
+                        {keywords.map((keyword) => (
+                          <span key={keyword} className="bg-primary/10 text-primary px-2 py-0.5 rounded text-xs flex items-center space-x-1 border border-primary/20">
+                            <span>{keyword}</span>
+                            <span
+                              className="material-symbols-outlined text-[12px] cursor-pointer hover:text-white"
+                              onClick={() => handleRemoveKeyword(keyword)}
+                            >
+                              close
+                            </span>
+                          </span>
+                        ))}
+                        {showKeywordInput ? (
+                          <input
+                            autoFocus
+                            className="bg-surface-container-high border border-outline-variant text-xs text-on-surface rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                            placeholder="Type and press Enter..."
+                            type="text"
+                            value={newKeywordInput}
+                            onChange={(e) => setNewKeywordInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                handleAddKeyword(newKeywordInput)
+                              }
+                              if (e.key === 'Escape') setShowKeywordInput(false)
+                            }}
+                          />
+                        ) : (
+                          <button
+                            className="text-primary text-xs hover:underline flex items-center ml-1"
+                            type="button"
+                            onClick={() => setShowKeywordInput(true)}
+                          >
+                            <span className="material-symbols-outlined text-[14px] mr-0.5">add</span> Add
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {keywordSuggestions.map((suggestion) => (
+                          <button
+                            key={suggestion}
+                            type="button"
+                            onClick={() => handleAddKeyword(suggestion)}
+                            className="text-[10px] px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant hover:bg-primary/20 hover:text-primary transition-colors"
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Creative Asset (unchanged) */}
                 <div className="col-span-2 space-y-2">
                   <label className="text-label-md text-on-surface-variant">Creative Asset</label>
                   <div className="border-2 border-dashed border-outline-variant rounded-xl p-8 flex flex-col items-center justify-center bg-surface-container-low hover:bg-surface-container transition-all cursor-pointer group">
@@ -358,9 +639,42 @@ export default function AdManagement() {
                     <p className="text-on-surface-variant text-xs mt-1">Supports AI scaling (PNG, JPG, MP4)</p>
                   </div>
                 </div>
+
+                {/* CHANGE 6: Form state summary strip */}
+                <div className="col-span-2 flex flex-wrap gap-2 items-center py-2 px-3 bg-surface-container-lowest rounded-lg border border-outline-variant">
+                  <span className="text-xs text-on-surface-variant mr-1">Current config:</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${campaignTitle ? 'bg-primary/20 text-primary' : 'bg-red-500/20 text-red-400'}`}>
+                    Title: {campaignTitle || 'missing'}
+                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${dailyBudget && parseFloat(dailyBudget) > 0 ? 'bg-primary/20 text-primary' : 'bg-red-500/20 text-red-400'}`}>
+                    Budget: ${dailyBudget || '0'}
+                  </span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary">
+                    Format: {adFormat}
+                  </span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary">
+                    Strategy: {bidStrategy}
+                  </span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary">
+                    Category: {adCategory}
+                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${getDurationInDays() !== null && !dateError ? 'bg-primary/20 text-primary' : 'bg-red-500/20 text-red-400'}`}>
+                    Duration: {getDurationInDays() !== null && !dateError ? `${getDurationInDays()} days` : 'invalid'}
+                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${tags.length > 0 ? 'bg-primary/20 text-primary' : 'bg-red-500/20 text-red-400'}`}>
+                    Tags: {tags.length}
+                  </span>
+                </div>
+
                 <div className="col-span-2 flex justify-end space-x-4 pt-4 border-t border-outline-variant mt-2">
-                  <button className="px-6 py-3 text-on-surface-variant font-bold hover:text-on-surface transition-all" type="reset">Discard Draft</button>
-                  <button className="bg-primary text-on-primary-container px-8 py-3 rounded-xl font-bold active:scale-95 transition-transform shadow-lg shadow-primary/10" type="submit">Deploy Ad Intelligence</button>
+                  <button className="px-6 py-3 text-on-surface-variant font-bold hover:text-on-surface transition-all" type="reset" onClick={handleDiscardDraft}>Discard Draft</button>
+                  <button 
+                    className={`bg-primary text-on-primary-container px-8 py-3 rounded-xl font-bold transition-transform shadow-lg shadow-primary/10 ${isDeployDisabled() ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`} 
+                    type="submit"
+                    disabled={isDeployDisabled()}
+                  >
+                    Deploy Ad Intelligence
+                  </button>
                 </div>
               </form>
             </div>

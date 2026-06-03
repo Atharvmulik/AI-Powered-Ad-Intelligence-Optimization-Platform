@@ -305,7 +305,6 @@ export default function Analytics() {
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false)
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
   const [comparePeriodBPreset, setComparePeriodBPreset] = useState('Last 7 Days')
-  const [heatmapMode, setHeatmapMode] = useState('clicks')
   const [selectedExports, setSelectedExports] = useState({
     'Campaign Performance Metrics': true,
     'Audience Demographic Data': true,
@@ -329,6 +328,12 @@ export default function Analytics() {
   // ── Top ads state ──
   const [topAds, setTopAds] = useState([...TOP_ADS])
   const [tooltipAd, setTooltipAd] = useState(null)
+
+  // ── Conversion funnel state ──
+  const [impressions, setImpressions] = useState(1200000)
+  const [clicks, setClicks] = useState(45800)
+  const [conversions, setConversions] = useState(12200)
+  const [revenueEvents, setRevenueEvents] = useState(2400)
   
   const dateDropdownRef = useRef(null)
   const exportDropdownRef = useRef(null)
@@ -461,7 +466,7 @@ export default function Analytics() {
         const increment = randInt(100, 500)
         const newRevenue = ad.revenue + increment
         const formatRevenue = (val) => {
-          if (val >= 100000) return `₹${(val / 1000).toFixed(0)},${(val % 1000).toString().padStart(3, '0')}`
+          if (val >= 100000) return `₹${Math.floor(val / 1000)},${(val % 1000).toString().padStart(3, '0')}`
           return `₹${val.toLocaleString('en-IN')}`
         }
         return {
@@ -471,6 +476,17 @@ export default function Analytics() {
         }
       }))
     }, 6000)
+    return () => clearInterval(id)
+  }, [])
+
+  // ─── Conversion funnel live updates ───────────────────────────────────────
+  useEffect(() => {
+    const id = setInterval(() => {
+      setImpressions(prev => prev + randInt(-5000, 8000))
+      setClicks(prev => prev + randInt(-200, 400))
+      setConversions(prev => prev + randInt(-80, 150))
+      setRevenueEvents(prev => prev + randInt(-20, 40))
+    }, 10000)
     return () => clearInterval(id)
   }, [])
 
@@ -638,6 +654,30 @@ export default function Analytics() {
     if (rank === 3) return 'opacity-70'
     return 'opacity-50'
   }
+
+  // Funnel calculations
+  const clicksRate = ((clicks / impressions) * 100).toFixed(1)
+  const conversionsRate = ((conversions / clicks) * 100).toFixed(1)
+  const revenueRate = ((revenueEvents / conversions) * 100).toFixed(1)
+  const impressionsToClicksDrop = (100 - parseFloat(clicksRate)).toFixed(1)
+  const clicksToConversionsDrop = (100 - parseFloat(conversionsRate)).toFixed(1)
+  const conversionsToRevenueDrop = (100 - parseFloat(revenueRate)).toFixed(1)
+
+  // Calculate widths for funnel (max width = impressions, each subsequent is proportionally smaller)
+  const maxWidth = 100
+  const clicksWidth = (clicks / impressions) * maxWidth
+  const conversionsWidth = (conversions / impressions) * maxWidth
+  const revenueWidth = (revenueEvents / impressions) * maxWidth
+
+  // Ad Placement Performance data
+  const adPlacements = [
+    { name: 'Above the Fold', impressions: 420000, ctr: 4.2, revenue: 184000, isBest: true },
+    { name: 'Mid Article', impressions: 280000, ctr: 2.8, revenue: 98000, isBest: false },
+    { name: 'Sidebar', impressions: 190000, ctr: 1.4, revenue: 42000, isBest: false },
+    { name: 'Below Fold', impressions: 95000, ctr: 0.7, revenue: 12000, isBest: false },
+    { name: 'Sticky Footer', impressions: 120000, ctr: 1.1, revenue: 28000, isBest: false },
+  ]
+  const maxCtr = 4.2
 
   return (
     <div className="space-y-gutter">
@@ -987,7 +1027,7 @@ export default function Analytics() {
       {/* Engagement, Device Split, Top Ads - Equal Height Row */}
       <div className="grid grid-cols-12 gap-gutter items-stretch">
         
-        {/* 3. Engagement Panel - FIXED */}
+        {/* 3. Engagement Panel */}
         <div className="col-span-12 md:col-span-6 lg:col-span-4 bg-surface-container-low border border-outline-variant rounded-xl p-6 h-full flex flex-col">
           <div className="flex justify-between items-start mb-6">
             <div>
@@ -1025,7 +1065,7 @@ export default function Analytics() {
           </div>
         </div>
 
-        {/* 4. Device Split - FIXED with live updates */}
+        {/* 4. Device Split */}
         <div className="col-span-12 md:col-span-6 lg:col-span-3 bg-surface-container-low border border-outline-variant rounded-xl p-6 h-full flex flex-col">
           <h3 className="text-on-surface font-bold mb-6 text-title-lg">Device Split</h3>
           <div className="space-y-4 flex-1">
@@ -1055,7 +1095,7 @@ export default function Analytics() {
           </div>
         </div>
 
-        {/* 5. Top Performing Ads - FIXED with hover, tooltip, and live revenue updates */}
+        {/* 5. Top Performing Ads */}
         <div className="col-span-12 lg:col-span-5 bg-surface-container-low border border-outline-variant rounded-xl p-6 h-full flex flex-col">
           <div className="flex items-center gap-2 mb-5">
             <span className="material-symbols-outlined text-primary text-[20px]">workspace_premium</span>
@@ -1106,11 +1146,10 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* Rest of the dashboard continues unchanged */}
+      {/* New row: AI Growth Prediction + User Interests + Conversion Funnel */}
       <div className="grid grid-cols-12 gap-gutter mt-6">
-
-        {/* 7. AI Growth Prediction */}
-        <div className="col-span-12 md:col-span-6 lg:col-span-4 bg-surface-container-low border border-outline-variant rounded-xl p-6 ai-active">
+        {/* AI Growth Prediction */}
+        <div className="col-span-12 md:col-span-6 lg:col-span-4 bg-surface-container-low border border-outline-variant rounded-xl p-6">
           <div className="flex items-center gap-2 mb-6">
             <span className="material-symbols-outlined text-primary">psychology</span>
             <h3 className="text-on-surface font-bold text-title-lg">AI Growth Prediction</h3>
@@ -1135,7 +1174,7 @@ export default function Analytics() {
           </div>
         </div>
 
-        {/* 8. User Interests */}
+        {/* User Interests */}
         <div className="col-span-12 md:col-span-6 lg:col-span-3 bg-surface-container-low border border-outline-variant rounded-xl p-6">
           <h3 className="text-on-surface font-bold mb-6 text-title-lg">User Interests</h3>
           <div className="space-y-5">
@@ -1157,84 +1196,158 @@ export default function Analytics() {
             ))}
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-12 gap-gutter mt-6">
-        {/* 9. Conversion Funnel */}
-        <div className="col-span-12 lg:col-span-4 bg-surface-container-low border border-outline-variant rounded-xl p-6">
-          <h3 className="text-on-surface font-bold mb-8 text-title-lg">Conversion Funnel</h3>
-          <div className="space-y-1">
-            {[
-              { label: 'Impressions', val: '1.2M', indent: 'ml-0', bg: 'bg-primary/20', border: 'border-primary' },
-              { label: 'Clicks', val: '45.8K', indent: 'ml-4', bg: 'bg-primary/30', border: 'border-primary/60' },
-              { label: 'Add to Cart', val: '12.2K', indent: 'ml-8', bg: 'bg-primary/50', border: 'border-primary/40' },
-              { label: 'Purchases', val: '2.4K', indent: 'ml-12', bg: 'bg-primary', border: 'border-primary/20', valColor: 'text-primary' },
-            ].map((row, i) => (
-              <div key={i} className={`flex items-center ${row.indent}`}>
-                <div className={`flex-1 ${row.bg} h-12 flex items-center px-4 rounded-l-lg border-l-4 ${row.border}`}>
-                  <span className="text-sm font-bold">{row.label}</span>
+        {/* 9. Conversion Funnel - IMPROVED */}
+        <div className="col-span-12 lg:col-span-5 bg-surface-container-low border border-outline-variant rounded-xl p-6">
+          <h3 className="text-on-surface font-bold text-title-lg mb-2">Conversion Funnel</h3>
+          <p className="text-xs text-on-surface-variant mb-6">User journey from impressions to revenue events</p>
+          <div className="space-y-3">
+            {/* Impressions */}
+            <div className="flex items-center gap-4">
+              <div className="w-32 text-right">
+                <span className="text-sm font-bold text-on-surface">Impressions</span>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-lg font-black text-primary">{impressions.toLocaleString('en-IN')}</span>
                 </div>
-                <div className={`w-24 text-right pr-4 font-mono font-bold ${row.valColor || ''}`}>{row.val}</div>
+                <div className="w-full bg-surface-container-high h-8 rounded-lg overflow-hidden">
+                  <div className="bg-primary/30 h-full rounded-lg" style={{ width: '100%' }}></div>
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
+            <p className="text-[10px] text-red-400 text-right -mt-2">↓ {impressionsToClicksDrop}% drop</p>
 
-        {/* 10. Engagement Heatmap - Interactive */}
-        <div className="col-span-12 lg:col-span-8 bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden flex flex-col">
-          <div className="p-6 border-b border-outline-variant/30 flex items-center justify-between bg-surface-container/20">
-            <h3 className="text-on-surface font-bold text-title-lg">Engagement Heatmap</h3>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setHeatmapMode('clicks')}
-                className={`px-3 py-1 rounded text-xs font-bold border transition-all ${heatmapMode === 'clicks' ? 'bg-surface-container-high border-primary text-primary' : 'bg-surface-container-low border-outline-variant text-on-surface-variant'}`}
-              >
-                Clicks
-              </button>
-              <button
-                onClick={() => setHeatmapMode('scroll')}
-                className={`px-3 py-1 rounded text-xs font-bold border transition-all ${heatmapMode === 'scroll' ? 'bg-surface-container-high border-primary text-primary' : 'bg-surface-container-low border-outline-variant text-on-surface-variant'}`}
-              >
-                Scroll
-              </button>
-            </div>
-          </div>
-          <div className="flex-1 min-h-[300px] relative" style={{ background: '#050507' }}>
-            <div className="absolute inset-0 overflow-hidden opacity-40">
-              {heatmapMode === 'clicks' ? (
-                <>
-                  <div className="absolute top-[20%] left-[30%] w-32 h-32 bg-primary blur-3xl rounded-full opacity-60"></div>
-                  <div className="absolute top-[40%] left-[60%] w-48 h-48 bg-error blur-[64px] rounded-full opacity-40"></div>
-                  <div className="absolute top-[10%] left-[80%] w-24 h-24 bg-tertiary blur-3xl rounded-full opacity-30"></div>
-                  <div className="absolute bottom-[20%] left-[10%] w-56 h-56 bg-secondary blur-[80px] rounded-full opacity-20"></div>
-                </>
-              ) : (
-                <>
-                  <div className="absolute top-[15%] left-[25%] w-40 h-40 bg-cyan-500 blur-3xl rounded-full opacity-50"></div>
-                  <div className="absolute top-[50%] left-[55%] w-52 h-52 bg-teal-500 blur-[64px] rounded-full opacity-40"></div>
-                  <div className="absolute top-[5%] left-[70%] w-28 h-28 bg-blue-500 blur-3xl rounded-full opacity-35"></div>
-                  <div className="absolute bottom-[30%] left-[15%] w-60 h-60 bg-emerald-500 blur-[80px] rounded-full opacity-25"></div>
-                </>
-              )}
-            </div>
-            <div className="absolute inset-0 p-8 flex flex-col gap-6 opacity-80 pointer-events-none">
-              <div className="w-full h-12 bg-surface-container-high/50 rounded"></div>
-              <div className="grid grid-cols-4 gap-4 h-full">
-                <div className="col-span-3 bg-surface-container-high/30 rounded border border-outline-variant/20"></div>
-                <div className="bg-surface-container-high/30 rounded border border-outline-variant/20"></div>
+            {/* Clicks */}
+            <div className="flex items-center gap-4">
+              <div className="w-32 text-right">
+                <span className="text-sm font-bold text-on-surface">Clicks</span>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-lg font-black text-primary">{clicks.toLocaleString('en-IN')}</span>
+                  <span className="text-[10px] text-emerald-400">{clicksRate}% of impressions</span>
+                </div>
+                <div className="w-full bg-surface-container-high h-8 rounded-lg overflow-hidden">
+                  <div className="bg-primary/40 h-full rounded-lg" style={{ width: `${clicksWidth}%` }}></div>
+                </div>
               </div>
             </div>
-            <div className={`absolute top-[40%] left-[62%] w-4 h-4 rounded-full animate-ping ${heatmapMode === 'clicks' ? 'bg-error' : 'bg-cyan-400'}`}></div>
-            <div className={`absolute top-[22%] left-[32%] w-3 h-3 rounded-full animate-ping ${heatmapMode === 'clicks' ? 'bg-primary' : 'bg-teal-400'}`} style={{ animationDelay: '1s' }}></div>
-            {heatmapMode === 'scroll' && (
-              <div className="absolute top-[70%] left-[45%] w-3 h-3 bg-blue-400 rounded-full animate-ping" style={{ animationDelay: '0.5s' }}></div>
-            )}
+            <p className="text-[10px] text-red-400 text-right -mt-2" style={{ marginLeft: 'calc(32px + 1rem)' }}>↓ {clicksToConversionsDrop}% drop</p>
+
+            {/* Conversions (formerly Add to Cart) */}
+            <div className="flex items-center gap-4">
+              <div className="w-32 text-right">
+                <span className="text-sm font-bold text-on-surface">Conversions</span>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-lg font-black text-primary">{conversions.toLocaleString('en-IN')}</span>
+                  <span className="text-[10px] text-emerald-400">{conversionsRate}% of clicks</span>
+                </div>
+                <div className="w-full bg-surface-container-high h-8 rounded-lg overflow-hidden">
+                  <div className="bg-primary/50 h-full rounded-lg" style={{ width: `${conversionsWidth}%` }}></div>
+                </div>
+              </div>
+            </div>
+            <p className="text-[10px] text-red-400 text-right -mt-2" style={{ marginLeft: 'calc(64px + 1rem)' }}>↓ {conversionsToRevenueDrop}% drop</p>
+
+            {/* Revenue Events (formerly Purchases) */}
+            <div className="flex items-center gap-4">
+              <div className="w-32 text-right">
+                <span className="text-sm font-bold text-on-surface">Revenue Events</span>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-lg font-black text-primary">{revenueEvents.toLocaleString('en-IN')}</span>
+                  <span className="text-[10px] text-emerald-400">{revenueRate}% of conversions</span>
+                </div>
+                <div className="w-full bg-surface-container-high h-8 rounded-lg overflow-hidden">
+                  <div className="bg-primary/60 h-full rounded-lg" style={{ width: `${revenueWidth}%` }}></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
+      {/* Ad Placement Performance Panel - REPLACES Engagement Heatmap */}
       <div className="grid grid-cols-12 gap-gutter mt-6">
-        {/* 11. Data Export Console - Interactive */}
+        <div className="col-span-12 bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden">
+          <div className="p-6 border-b border-outline-variant/30 flex items-center justify-between bg-surface-container/20">
+            <div>
+              <h3 className="text-on-surface font-bold text-title-lg">Ad Placement Performance</h3>
+              <p className="text-xs text-on-surface-variant mt-0.5">RL Agent Optimization Results</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold px-2 py-1 bg-primary/15 border border-primary/30 text-primary rounded-full flex items-center gap-1">
+                <span className="material-symbols-outlined text-[12px]">psychology</span>
+                Powered by RL Agent
+              </span>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-outline-variant/30 text-[11px] uppercase text-on-surface-variant font-label-md">
+                  <th className="text-left px-6 py-4">Placement</th>
+                  <th className="text-left px-6 py-4">Impressions</th>
+                  <th className="text-left px-6 py-4">CTR</th>
+                  <th className="text-left px-6 py-4">Revenue</th>
+                  <th className="text-left px-6 py-4">Performance</th>
+                 </tr>
+              </thead>
+              <tbody>
+                {adPlacements.map((placement) => (
+                  <tr
+                    key={placement.name}
+                    className={`border-b border-outline-variant/20 transition-colors hover:bg-surface-container-high/30 ${placement.isBest ? 'bg-primary/5' : ''}`}
+                  >
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-on-surface">{placement.name}</span>
+                        {placement.isBest && (
+                          <span className="text-[10px] px-2 py-0.5 bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 rounded-full flex items-center gap-1">
+                            🏆 Best Performer
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 font-mono text-xs text-on-surface">{placement.impressions.toLocaleString('en-IN')}</td>
+                    <td className="px-6 py-4">
+                      <span className="font-mono font-bold text-primary text-xs">{placement.ctr}%</span>
+                    </td>
+                    <td className="px-6 py-4 font-mono text-xs text-emerald-400 font-bold">
+                      ₹{(placement.revenue / 1000).toFixed(0)},{String(placement.revenue % 1000).padStart(3, '0')}
+                    </td>
+                    <td className="px-6 py-4 w-48">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-surface-container-high h-2 rounded-full overflow-hidden">
+                          <div
+                            className="bg-gradient-to-r from-primary to-secondary h-full rounded-full"
+                            style={{ width: `${(placement.ctr / maxCtr) * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-on-surface-variant font-mono w-12">{(placement.ctr / maxCtr * 100).toFixed(0)}%</span>
+                      </div>
+                    </td>
+                   </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="p-4 border-t border-outline-variant/20 bg-surface-container-lowest">
+            <p className="text-[10px] text-on-surface-variant flex items-center gap-2">
+              <span className="material-symbols-outlined text-sm text-primary">trending_up</span>
+              RL Agent recommends increasing Above the Fold allocation by 15% for optimal ROI
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Data Export Console + Fraud Detection row */}
+      <div className="grid grid-cols-12 gap-gutter mt-6">
+        {/* Data Export Console - Interactive */}
         <div className="col-span-12 lg:col-span-4 bg-surface-container-low border border-outline-variant rounded-xl p-6 flex flex-col">
           <h3 className="text-on-surface font-bold mb-6 text-title-lg">Data Export Console</h3>
           <div className="flex-grow flex flex-col justify-between space-y-4">
@@ -1269,6 +1382,73 @@ export default function Analytics() {
             </div>
           </div>
         </div>
+
+        {/* Fraud Detection Panel - condensed */}
+        <div className="col-span-12 lg:col-span-8 bg-surface-container-low border border-red-500/20 rounded-xl overflow-hidden">
+          <div className="p-5 border-b border-outline-variant/30 flex items-center justify-between bg-red-500/5">
+            <div className="flex items-center gap-3">
+              <span className="pulse-dot inline-block w-2.5 h-2.5 rounded-full bg-red-500" />
+              <span className="material-symbols-outlined text-red-400">gpp_bad</span>
+              <h3 className="text-on-surface font-bold text-title-lg">Fraud Detection Monitor</h3>
+              <span className="text-[10px] font-bold px-2 py-0.5 bg-red-500/15 border border-red-500/30 text-red-400 rounded-full animate-pulse">LIVE</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-on-surface-variant">
+              <span className="material-symbols-outlined text-sm">shield</span>
+              Powered by XGBoost + Isolation Forest
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-outline-variant/30 text-[11px] uppercase text-on-surface-variant font-label-md">
+                  <th className="text-left px-5 py-3">Timestamp</th>
+                  <th className="text-left px-5 py-3">IP Address</th>
+                  <th className="text-left px-5 py-3">Device ID</th>
+                  <th className="text-left px-5 py-3">Fraud Score</th>
+                  <th className="text-left px-5 py-3">Category</th>
+                  <th className="text-left px-5 py-3">Action</th>
+                 </tr>
+              </thead>
+              <tbody>
+                {fraudLog.slice(0, 4).map((row, i) => (
+                  <tr key={row.id} className={`border-b border-outline-variant/20 transition-colors hover:bg-surface-container-high/30 ${i === 0 ? 'bg-red-500/5' : ''}`}>
+                    <td className="px-5 py-3 font-mono text-xs text-on-surface-variant">{row.ts}</td>
+                    <td className="px-5 py-3 font-mono text-xs text-on-surface">{row.ip}</td>
+                    <td className="px-5 py-3 font-mono text-xs text-on-surface-variant">{row.device}</td>
+                    <td className="px-5 py-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold font-mono ${fraudScoreBg(row.score)}`}>
+                        {row.score.toFixed(2)}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-xs font-medium text-on-surface">{row.category}</td>
+                    <td className="px-5 py-3">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold ${actionChip(row.action)}`}>
+                        {row.action}
+                      </span>
+                    </td>
+                   </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="p-4 flex flex-wrap gap-3 border-t border-outline-variant/20 bg-surface-container-lowest">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/20">
+              <span className="material-symbols-outlined text-red-400 text-sm">block</span>
+              <span className="text-xs font-bold text-red-400">Blocked Today:</span>
+              <span className="text-xs font-black text-on-surface">1,247</span>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+              <span className="material-symbols-outlined text-yellow-400 text-sm">flag</span>
+              <span className="text-xs font-bold text-yellow-400">Flagged:</span>
+              <span className="text-xs font-black text-on-surface">389</span>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+              <span className="material-symbols-outlined text-emerald-400 text-sm">check_circle</span>
+              <span className="text-xs font-bold text-emerald-400">Clean:</span>
+              <span className="text-xs font-black text-on-surface">98.2K</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
@@ -1299,7 +1479,7 @@ export default function Analytics() {
                   <span className="flex items-center gap-1">ROAS {sortIcon('roas')}</span>
                 </th>
                 <th className="text-left px-5 py-3">Status</th>
-              </tr>
+               </tr>
             </thead>
             <tbody>
               {sortedCampaigns.map((c) => {
@@ -1319,11 +1499,11 @@ export default function Analytics() {
                     <td className="px-5 py-4">
                       <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${statusColor(c.status)}`}>{c.status}</span>
                     </td>
-                  </tr>
+                   </tr>
                 )
               })}
             </tbody>
-          </table>
+           </table>
         </div>
       </div>
 

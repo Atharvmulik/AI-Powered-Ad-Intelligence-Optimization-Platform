@@ -28,3 +28,5 @@ build/
 # OS Files
 .DS_Store
 Thumbs.db
+
+backend/ml/data/

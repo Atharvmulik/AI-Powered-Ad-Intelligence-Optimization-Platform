@@ -1,11 +1,14 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
 export default function RealTimeEvents() {
   const [isPaused, setIsPaused] = useState(false)
   const [eventsPerSec, setEventsPerSec] = useState(847)
   const [totalEvents, setTotalEvents] = useState(72.4) // in Millions
   const [kafkaLatency, setKafkaLatency] = useState(12) // in ms
-
+  const [fraudCount, setFraudCount] = useState(0)
+  const [latencyHistory, setLatencyHistory] = useState([12, 13, 11, 12, 14, 13, 12, 11, 10, 12, 13, 14, 12, 11, 13, 12, 14, 13, 12, 11])
+  const [isExportOpen, setIsExportOpen] = useState(false)
+  const [flashFraud, setFlashFraud] = useState(false)
   const [logs, setLogs] = useState([
     { time: '14:02:21', label: 'CLICK', msg: 'evt_88921_clnk | campaign_id: AD_990 | score: 0.98', color: 'text-primary', msgColor: 'text-on-surface' },
     { time: '14:02:22', label: 'FRAUD', msg: 'SUSPICIOUS_IP | src: 192.168.1.1 | bot_sig: detected | blocking...', color: 'text-error', msgColor: 'text-error' },
@@ -15,12 +18,42 @@ export default function RealTimeEvents() {
   ])
   
   const terminalEndRef = useRef(null)
+  const exportRef = useRef(null)
 
   const eventTypes = [
     { label: 'CLICK', color: 'text-primary', msgColor: 'text-on-surface', pattern: 'evt_{}_clnk | campaign_id: AD_{} | score: {}' },
     { label: 'FRAUD', color: 'text-error', msgColor: 'text-error', pattern: 'BLOCKED | reason: high_velocity | ip: 45.2.{}.{}' },
-    { label: 'PRED', color: 'text-tertiary', msgColor: 'text-tertiary', pattern: 'MODEL_HIT | p_conv: {} | recommended_bid: ${}' }
+    { label: 'PRED', color: 'text-tertiary', msgColor: 'text-tertiary', pattern: 'MODEL_HIT | p_conv: {} | recommended_bid: ${}' },
+    { label: 'SHAP', color: 'text-yellow-400', msgColor: 'text-yellow-400', pattern: 'EXPLAIN | ad_id: AD_{} | top_feat: user_interest(+{}) device_type(+{}) time_of_day(+{})' }
   ]
+
+  // Calculate event distribution counts
+  const getEventCounts = useCallback(() => {
+    const counts = { CLICK: 0, FRAUD: 0, PRED: 0, SHAP: 0 }
+    logs.forEach(log => {
+      if (counts[log.label] !== undefined) counts[log.label]++
+    })
+    return counts
+  }, [logs])
+
+  const eventCounts = getEventCounts()
+  const maxCount = Math.max(...Object.values(eventCounts), 1)
+
+  const getBarHeight = (count) => {
+    const minHeight = 8
+    const maxHeight = 70
+    return count === 0 ? minHeight : (count / maxCount) * maxHeight
+  }
+
+  // Update latency history
+  useEffect(() => {
+    if (!isPaused) {
+      setLatencyHistory(prev => {
+        const newHistory = [...prev.slice(-19), kafkaLatency]
+        return newHistory
+      })
+    }
+  }, [kafkaLatency, isPaused])
 
   // Simulate real-time stats fluctuations
   useEffect(() => {
@@ -45,7 +78,14 @@ export default function RealTimeEvents() {
       if (isPaused) return
       const now = new Date()
       const time = now.toLocaleTimeString('en-GB', { hour12: false })
-      const event = eventTypes[Math.floor(Math.random() * eventTypes.length)]
+      
+      // SHAP appears every 8-10 seconds (about 1/6 of the time with 1.5s interval)
+      let event
+      if (Math.random() < 0.15) {
+        event = eventTypes[3] // SHAP
+      } else {
+        event = eventTypes[Math.floor(Math.random() * 3)]
+      }
       
       let msg = event.pattern
       if (event.label === 'CLICK') {
@@ -55,34 +95,107 @@ export default function RealTimeEvents() {
       } else if (event.label === 'FRAUD') {
         msg = msg.replace('{}', Math.floor(Math.random() * 255))
                  .replace('{}', Math.floor(Math.random() * 255))
-      } else {
+      } else if (event.label === 'PRED') {
         msg = msg.replace('{}', Math.random().toFixed(3))
                  .replace('{}', (Math.random() * 4 + 0.5).toFixed(2))
+      } else if (event.label === 'SHAP') {
+        msg = msg.replace('{}', Math.floor(Math.random() * 900 + 100))
+                 .replace('{}', (Math.random() * 0.5 + 0.1).toFixed(2))
+                 .replace('{}', (Math.random() * 0.3 + 0.05).toFixed(2))
+                 .replace('{}', (Math.random() * 0.25 + 0.05).toFixed(2))
+      }
+
+      // Update fraud count
+      if (event.label === 'FRAUD') {
+        setFraudCount(prev => prev + 1)
+        setFlashFraud(true)
+        setTimeout(() => setFlashFraud(false), 500)
       }
 
       setLogs(prev => {
         const next = [...prev, { time, label: event.label, msg, color: event.color, msgColor: event.msgColor }]
-        return next.length > 25 ? next.slice(next.length - 25) : next
+        return next.length > 30 ? next.slice(next.length - 30) : next
       })
     }, 1500)
     return () => clearInterval(logTimer)
   }, [isPaused])
 
+  // Auto-scroll terminal
   useEffect(() => {
     if (terminalEndRef.current) {
       terminalEndRef.current.scrollTop = terminalEndRef.current.scrollHeight
     }
   }, [logs])
 
-  const exportLogs = () => {
-    const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `adai_event_logs_${Date.now()}.json`
-    link.click()
-    URL.revokeObjectURL(url)
+  // Click outside handler for export dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (exportRef.current && !exportRef.current.contains(event.target)) {
+        setIsExportOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const exportLogs = (format) => {
+    if (format === 'json') {
+      const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `adai_event_logs_${Date.now()}.json`
+      link.click()
+      URL.revokeObjectURL(url)
+    } else if (format === 'csv') {
+      const csvRows = [
+        ['timestamp', 'event_type', 'message'],
+        ...logs.map(log => [log.time, log.label, log.msg])
+      ]
+      const csvContent = csvRows.map(row => row.join(',')).join('\n')
+      const blob = new Blob([csvContent], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `adai_event_logs_${Date.now()}.csv`
+      link.click()
+      URL.revokeObjectURL(url)
+    }
+    setIsExportOpen(false)
   }
+
+  const resetFraudCounter = () => {
+    setFraudCount(0)
+  }
+
+  // Generate dynamic SVG path
+  const generatePath = () => {
+    if (latencyHistory.length === 0) return ''
+    const minLatency = 9
+    const maxLatency = 18
+    
+    const points = latencyHistory.map((value, index) => {
+      const x = (index / (latencyHistory.length - 1)) * 400
+      const y = 80 - ((value - minLatency) / (maxLatency - minLatency)) * 60
+      return `${x},${y}`
+    })
+    
+    const pathData = `M ${points.join(' L ')}`
+    const areaPath = `${pathData} V 100 H 0 Z`
+    return { linePath: pathData, areaPath }
+  }
+
+  const { linePath, areaPath } = generatePath()
+  const latestLatency = latencyHistory[latencyHistory.length - 1] || kafkaLatency
+  const lineColor = latestLatency > 15 ? '#ef4444' : '#c0c1ff'
+
+  const getKafkaStatus = () => {
+    if (eventsPerSec > 800) return { text: 'HEALTHY', color: 'text-green-400', dotColor: 'bg-green-400', borderColor: 'border-green-400/30' }
+    if (eventsPerSec >= 600) return { text: 'DEGRADED', color: 'text-yellow-400', dotColor: 'bg-yellow-400', borderColor: 'border-yellow-400/30' }
+    return { text: 'CRITICAL', color: 'text-red-400', dotColor: 'bg-red-400', borderColor: 'border-red-400/30' }
+  }
+
+  const kafkaStatus = getKafkaStatus()
 
   return (
     <div className="space-y-stack-lg">
@@ -93,14 +206,43 @@ export default function RealTimeEvents() {
             <span className="w-2 h-2 rounded-full bg-tertiary mr-2"></span>
             <span className="text-tertiary font-label-md text-label-md font-bold uppercase tracking-widest">LIVE</span>
           </div>
+          <div className="flex items-center px-3 py-1 bg-error-container/20 border border-error/30 rounded-full select-none">
+            <span className="material-symbols-outlined text-error text-[16px] mr-1">shield</span>
+            <span className="text-error font-label-md text-label-md font-bold">{fraudCount} Fraud Blocked</span>
+            <button
+              onClick={resetFraudCounter}
+              className="ml-2 text-on-surface-variant hover:text-error transition-colors text-xs"
+            >
+              Reset
+            </button>
+          </div>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex space-x-2 relative" ref={exportRef}>
           <button
-            onClick={exportLogs}
+            onClick={() => setIsExportOpen(!isExportOpen)}
             className="px-4 py-2 bg-surface-container-high border border-outline-variant rounded-lg font-label-md text-label-md flex items-center hover:bg-surface-bright transition-colors text-xs font-bold"
           >
             <span className="material-symbols-outlined text-[18px] mr-2">download</span> Export Logs
+            <span className="material-symbols-outlined text-[16px] ml-1">arrow_drop_down</span>
           </button>
+          {isExportOpen && (
+            <div className="absolute top-full right-0 mt-2 bg-surface-container-high border border-outline-variant rounded-lg shadow-2xl z-50 min-w-[180px] overflow-hidden">
+              <button
+                onClick={() => exportLogs('json')}
+                className="w-full px-4 py-2 text-left hover:bg-surface-bright transition-colors flex items-center space-x-2"
+              >
+                <span className="material-symbols-outlined text-[18px]">code</span>
+                <span>Export as JSON</span>
+              </button>
+              <button
+                onClick={() => exportLogs('csv')}
+                className="w-full px-4 py-2 text-left hover:bg-surface-bright transition-colors flex items-center space-x-2 border-t border-outline-variant"
+              >
+                <span className="material-symbols-outlined text-[18px]">table_chart</span>
+                <span>Export as CSV</span>
+              </button>
+            </div>
+          )}
           <button
             onClick={() => setIsPaused(!isPaused)}
             className="px-4 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md flex items-center shadow-lg shadow-primary/20 text-xs font-bold"
@@ -164,10 +306,57 @@ export default function RealTimeEvents() {
         </div>
       </div>
 
+      {/* Stream Health Status Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-gutter">
+        <div className={`bg-surface-container-low border ${kafkaStatus.borderColor} rounded-lg px-4 py-2 flex items-center justify-between group relative`}>
+          <div className="flex items-center space-x-2">
+            <div className={`w-2 h-2 rounded-full ${kafkaStatus.dotColor} animate-pulse`}></div>
+            <span className="text-on-surface-variant font-label-md text-label-md uppercase text-xs">Kafka Status</span>
+          </div>
+          <span className={`${kafkaStatus.color} font-mono font-bold text-sm`}>{kafkaStatus.text}</span>
+          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-surface-container-highest text-on-surface text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+            Real-time Kafka consumer lag monitoring
+          </div>
+        </div>
+        
+        <div className="bg-surface-container-low border border-green-400/30 rounded-lg px-4 py-2 flex items-center justify-between group relative">
+          <div className="flex items-center space-x-2">
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+            <span className="text-on-surface-variant font-label-md text-label-md uppercase text-xs">ML Pipeline</span>
+          </div>
+          <span className="text-green-400 font-mono font-bold text-sm">ACTIVE</span>
+          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-surface-container-highest text-on-surface text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+            Real-time inference engine status
+          </div>
+        </div>
+
+        <div className="bg-surface-container-low border border-tertiary/30 rounded-lg px-4 py-2 flex items-center justify-between group relative">
+          <div className="flex items-center space-x-2">
+            <div className="w-2 h-2 rounded-full bg-tertiary animate-pulse"></div>
+            <span className="text-on-surface-variant font-label-md text-label-md uppercase text-xs">Fraud Engine</span>
+          </div>
+          <span className="text-tertiary font-mono font-bold text-sm">SCANNING</span>
+          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-surface-container-highest text-on-surface text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+            Real-time fraud detection scanning
+          </div>
+        </div>
+
+        <div className="bg-surface-container-low border border-secondary/30 rounded-lg px-4 py-2 flex items-center justify-between group relative">
+          <div className="flex items-center space-x-2">
+            <div className="w-2 h-2 rounded-full bg-secondary"></div>
+            <span className="text-on-surface-variant font-label-md text-label-md uppercase text-xs">Redis Cache</span>
+          </div>
+          <span className="text-secondary font-mono font-bold text-sm">HIT RATE: 94%</span>
+          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-surface-container-highest text-on-surface text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+            Cache hit rate for real-time features
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
         {/* Terminal Console */}
         <div className="col-span-12 lg:col-span-8 flex flex-col">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col h-[500px] relative shadow-2xl">
+          <div className={`bg-surface-container-lowest border ${flashFraud ? 'border-red-500' : 'border-outline-variant'} rounded-xl overflow-hidden flex flex-col h-[500px] relative shadow-2xl transition-all duration-500`}>
             {/* Scanline effect */}
             <div className="scanline"></div>
             {/* Terminal Header */}
@@ -184,7 +373,7 @@ export default function RealTimeEvents() {
               </div>
             </div>
             {/* Terminal Body */}
-            <div ref={terminalEndRef} className="flex-grow p-4 font-mono text-label-md overflow-y-auto terminal-scroll bg-[#050507] text-[12px] space-y-1">
+            <div ref={terminalEndRef} className="flex-grow p-4 font-mono text-label-md overflow-y-auto terminal-scroll bg-[#050507] text-[12px] space-y-1 relative">
               <div className="text-on-surface-variant opacity-50 mb-2 border-b border-outline-variant pb-2 font-mono">
                 --- INITIALIZING AI STREAM ANALYSIS PARSER v2.4 ---
               </div>
@@ -196,11 +385,11 @@ export default function RealTimeEvents() {
                 </div>
               ))}
               {!isPaused && (
-                <div className="flex space-x-4 animate-pulse font-mono">
+                <div className="flex space-x-4 font-mono items-center">
                   <span className="text-on-surface-variant opacity-40">[{new Date().toLocaleTimeString('en-GB', { hour12: false })}]</span>
                   <span className="text-primary font-bold">STREAM</span>
                   <span className="text-on-surface italic">Waiting for incoming packets...</span>
-                  <span className="terminal-cursor"></span>
+                  <span className="inline-block w-2 h-4 bg-primary ml-1 animate-blink"></span>
                 </div>
               )}
             </div>
@@ -217,22 +406,32 @@ export default function RealTimeEvents() {
             </h3>
             <div className="flex-grow flex items-end justify-between space-x-2 px-2 pb-2">
               <div className="flex flex-col items-center flex-1 group">
-                <div className="w-full bg-primary/20 rounded-t-sm relative transition-all group-hover:bg-primary/40 h-[80px]">
-                  <div className="absolute bottom-0 w-full bg-primary h-[60px] rounded-t-sm shadow-[0_0_15px_rgba(192,193,255,0.4)]"></div>
+                <div className="w-full bg-primary/20 rounded-t-sm relative transition-all duration-300 group-hover:bg-primary/40" style={{ height: '80px' }}>
+                  <div className="absolute bottom-0 w-full bg-primary rounded-t-sm shadow-[0_0_15px_rgba(192,193,255,0.4)] transition-all duration-500" style={{ height: `${getBarHeight(eventCounts.CLICK)}px` }}></div>
                 </div>
                 <span className="font-label-md text-[10px] mt-2 text-primary font-bold">Clicks</span>
+                <span className="text-xs text-on-surface-variant mt-1">{eventCounts.CLICK}</span>
               </div>
               <div className="flex flex-col items-center flex-1 group">
-                <div className="w-full bg-error/20 rounded-t-sm relative transition-all group-hover:bg-error/40 h-[80px]">
-                  <div className="absolute bottom-0 w-full bg-error h-[15px] rounded-t-sm"></div>
+                <div className="w-full bg-error/20 rounded-t-sm relative transition-all duration-300 group-hover:bg-error/40" style={{ height: '80px' }}>
+                  <div className="absolute bottom-0 w-full bg-error rounded-t-sm transition-all duration-500" style={{ height: `${getBarHeight(eventCounts.FRAUD)}px` }}></div>
                 </div>
                 <span className="font-label-md text-[10px] mt-2 text-error font-bold">Fraud</span>
+                <span className="text-xs text-on-surface-variant mt-1">{eventCounts.FRAUD}</span>
               </div>
               <div className="flex flex-col items-center flex-1 group">
-                <div className="w-full bg-tertiary/20 rounded-t-sm relative transition-all group-hover:bg-tertiary/40 h-[80px]">
-                  <div className="absolute bottom-0 w-full bg-tertiary h-[25px] rounded-t-sm"></div>
+                <div className="w-full bg-tertiary/20 rounded-t-sm relative transition-all duration-300 group-hover:bg-tertiary/40" style={{ height: '80px' }}>
+                  <div className="absolute bottom-0 w-full bg-tertiary rounded-t-sm transition-all duration-500" style={{ height: `${getBarHeight(eventCounts.PRED)}px` }}></div>
                 </div>
                 <span className="font-label-md text-[10px] mt-2 text-tertiary font-bold">Preds</span>
+                <span className="text-xs text-on-surface-variant mt-1">{eventCounts.PRED}</span>
+              </div>
+              <div className="flex flex-col items-center flex-1 group">
+                <div className="w-full bg-yellow-400/20 rounded-t-sm relative transition-all duration-300 group-hover:bg-yellow-400/40" style={{ height: '80px' }}>
+                  <div className="absolute bottom-0 w-full bg-yellow-400 rounded-t-sm transition-all duration-500" style={{ height: `${getBarHeight(eventCounts.SHAP)}px` }}></div>
+                </div>
+                <span className="font-label-md text-[10px] mt-2 text-yellow-400 font-bold">SHAP</span>
+                <span className="text-xs text-on-surface-variant mt-1">{eventCounts.SHAP}</span>
               </div>
             </div>
           </div>
@@ -247,13 +446,21 @@ export default function RealTimeEvents() {
               <svg className="w-full h-32" preserveAspectRatio="none" viewBox="0 0 400 100">
                 <defs>
                   <linearGradient id="latencyGradient" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#c0c1ff" stopOpacity="0.2"></stop>
-                    <stop offset="100%" stopColor="#c0c1ff" stopOpacity="0"></stop>
+                    <stop offset="0%" stopColor={lineColor} stopOpacity="0.2"></stop>
+                    <stop offset="100%" stopColor={lineColor} stopOpacity="0"></stop>
                   </linearGradient>
                 </defs>
-                <path d="M0,80 L40,82 L80,75 L120,88 L160,70 L200,60 L240,65 L280,50 L320,55 L360,40 L400,45 V100 H0 Z" fill="url(#latencyGradient)"></path>
-                <path d="M0,80 L40,82 L80,75 L120,88 L160,70 L200,60 L240,65 L280,50 L320,55 L360,40 L400,45" fill="none" stroke="#c0c1ff" strokeWidth="2"></path>
-                <circle className="status-pulse" cx="280" cy="50" fill="#c0c1ff" r="4"></circle>
+                <path d={areaPath} fill="url(#latencyGradient)"></path>
+                <path d={linePath} fill="none" stroke={lineColor} strokeWidth="2"></path>
+                {latencyHistory.length > 0 && (
+                  <circle 
+                    className="status-pulse" 
+                    cx={(latencyHistory.length - 1) / (latencyHistory.length - 1) * 400} 
+                    cy={80 - ((latestLatency - 9) / (18 - 9)) * 60}
+                    fill={lineColor} 
+                    r="4"
+                  />
+                )}
               </svg>
               <div className="absolute top-1/2 left-0 w-full h-[1px] bg-outline-variant/30"></div>
               <div className="absolute top-1/4 left-0 w-full h-[1px] bg-outline-variant/30"></div>
@@ -289,6 +496,52 @@ export default function RealTimeEvents() {
           </div>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes blink {
+          0%, 50% { opacity: 1; }
+          51%, 100% { opacity: 0; }
+        }
+        .animate-blink {
+          animation: blink 1s step-end infinite;
+        }
+        .scanline {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: repeating-linear-gradient(
+            0deg,
+            rgba(0, 255, 0, 0.03) 0px,
+            rgba(0, 255, 0, 0.03) 2px,
+            transparent 2px,
+            transparent 4px
+          );
+          pointer-events: none;
+          z-index: 1;
+        }
+        .terminal-scroll::-webkit-scrollbar {
+          width: 8px;
+        }
+        .terminal-scroll::-webkit-scrollbar-track {
+          background: #1a1a1a;
+        }
+        .terminal-scroll::-webkit-scrollbar-thumb {
+          background: #3a3a3a;
+          border-radius: 4px;
+        }
+        .terminal-scroll::-webkit-scrollbar-thumb:hover {
+          background: #4a4a4a;
+        }
+        .status-pulse {
+          animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+          0%, 100% { r: 4px; opacity: 1; }
+          50% { r: 6px; opacity: 0.7; }
+        }
+      `}</style>
     </div>
   )
 }

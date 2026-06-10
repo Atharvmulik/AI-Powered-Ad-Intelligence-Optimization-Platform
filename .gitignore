@@ -12,7 +12,7 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Alembic
+# Alembic / Local DB
 *.sqlite3
 
 # VS Code
@@ -29,4 +29,22 @@ build/
 .DS_Store
 Thumbs.db
 
+# ML Data
 backend/ml/data/
+backend/ml/data/
+backend/ml/data/processed/
+
+# ML Models
+backend/ml/saved_models/
+*.pkl
+*.joblib
+
+# ML Reports
+backend/ml/reports/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Cache
+.pytest_cache/
+.mypy_cache/

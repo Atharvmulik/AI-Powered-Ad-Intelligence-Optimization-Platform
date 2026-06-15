@@ -29,22 +29,33 @@ build/
 .DS_Store
 Thumbs.db
 
-# ML Data
-backend/ml/data/
+# ── ML Data ───────────────────────────────────────────────────────────────────
 backend/ml/data/
 backend/ml/data/processed/
 
-# ML Models
+# Raw dataset files (too large for GitHub)
+*.txt
+*.tsv
+*.npz
+*.csv
+
+# ── ML Models & Artifacts ─────────────────────────────────────────────────────
 backend/ml/saved_models/
+backend/ml/save_model/        # ← your actual folder name from today's work
 *.pkl
 *.joblib
+*.txt.bak
 
-# ML Reports
+# LightGBM model file
+lgb_model.txt
+
+# ── ML Reports & Plots ────────────────────────────────────────────────────────
 backend/ml/reports/
+backend/ml/plots/             # ← SHAP and evaluation plots (regeneratable)
 
-# Jupyter
+# ── Jupyter ───────────────────────────────────────────────────────────────────
 .ipynb_checkpoints/
 
-# Cache
+# ── Cache ─────────────────────────────────────────────────────────────────────
 .pytest_cache/
 .mypy_cache/

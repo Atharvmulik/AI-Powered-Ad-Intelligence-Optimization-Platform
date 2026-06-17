@@ -106,6 +106,22 @@ export default function Campaigns() {
     }
   }), [])
 
+  // ========== TOP PERFORMING ADS (PRD Module 5 — required dashboard output) ==========
+  const topAds = useMemo(() => ([
+    { id: 'gaming_laptop_ad_14', campaign: 'Back to School', format: 'Video', ctr: 4.8, revenue: 18420 },
+    { id: 'sneaker_drop_ad_07', campaign: 'Summer Sale 2024', format: 'Native', ctr: 4.1, revenue: 15960 },
+    { id: 'fitness_band_ad_22', campaign: 'Summer Sale 2024', format: 'Banner', ctr: 3.6, revenue: 12110 },
+    { id: 'backpack_combo_ad_03', campaign: 'Back to School', format: 'Native', ctr: 3.2, revenue: 9870 },
+    { id: 'energy_drink_ad_19', campaign: 'Summer Sale 2024', format: 'Video', ctr: 2.9, revenue: 8430 },
+  ]), [])
+
+  // ========== RL PLACEMENT AGENT LOG (PRD Module 6 — Smart Ad Placement) ==========
+  const [placementLog, setPlacementLog] = useState([
+    { action: 'Placement → Inline', expectedReward: 0.81, episode: 14820 },
+    { action: 'Format → Video', expectedReward: 0.77, episode: 14819 },
+    { action: 'Delay → 2.5s', expectedReward: 0.74, episode: 14818 },
+  ])
+
   // ========== LIVE DATA UPDATES ==========
   useEffect(() => {
     // Chart data update every 3 seconds
@@ -204,6 +220,29 @@ export default function Campaigns() {
     }, 4500)
 
     return () => clearInterval(fraudInterval)
+  }, [])
+
+  // ========== RL PLACEMENT AGENT — periodic policy update (Module 6) ==========
+  useEffect(() => {
+    const placementActions = [
+      { action: 'Placement → Top Banner', formatNote: 'Format: Banner' },
+      { action: 'Placement → Inline', formatNote: 'Format: Native' },
+      { action: 'Placement → Sidebar', formatNote: 'Format: Video' },
+      { action: 'Show delay → 1.5s', formatNote: 'Format unchanged' },
+      { action: 'Show delay → 3.0s', formatNote: 'Format unchanged' },
+    ]
+
+    const placementInterval = setInterval(() => {
+      const pick = placementActions[Math.floor(Math.random() * placementActions.length)]
+      const newEntry = {
+        action: pick.action,
+        expectedReward: parseFloat((0.55 + Math.random() * 0.35).toFixed(2)),
+        episode: 14820 + Math.floor(Math.random() * 50)
+      }
+      setPlacementLog(prev => [newEntry, ...prev].slice(0, 3))
+    }, 6000)
+
+    return () => clearInterval(placementInterval)
   }, [])
 
   // ========== AUTO-SCROLL FRAUD FEED ==========
@@ -340,8 +379,8 @@ export default function Campaigns() {
               <p className="text-[10px] text-on-surface-variant mt-1">Invalid clicks prevented</p>
             </div>
 
-            {/* Avg Inference Latency */}
-            {/* <div className="p-3 bg-surface-container rounded-lg border-l-4 border-tertiary">
+            {/* Avg Inference Latency — re-enabled: NFR §6 requires <100ms end-to-end, <30ms ML inference */}
+            <div className="p-3 bg-surface-container rounded-lg border-l-4 border-tertiary">
               <div className="flex justify-between items-start mb-2">
                 <p className="text-xs font-label-md text-on-surface-variant uppercase tracking-wider">Inference Latency</p>
                 <div className="flex gap-[2px] items-end h-6">
@@ -350,9 +389,9 @@ export default function Campaigns() {
                   ))}
                 </div>
               </div>
-              <p className="text-2xl font-bold text-tertiary">{avgLatency}ms</p>
+              <p className="text-2xl font-bold text-tertiary">{Math.round(avgLatency)}ms</p>
               <p className="text-[10px] text-on-surface-variant mt-1">XGBoost + Isolation Forest inference</p>
-            </div> */}
+            </div>
           </div>
         </div>
       </section>
@@ -596,6 +635,39 @@ export default function Campaigns() {
         </div>
       </section>
 
+      {/* ========== SECTION 3B: TOP PERFORMING ADS (PRD §5 Module 5 required output) ========== */}
+      <section>
+        <div className="mb-6">
+          <h2 className="font-headline-lg text-headline-lg text-on-surface">Top Performing Ads</h2>
+          <p className="font-body-md text-on-surface-variant">Ranked by CTR and fraud-filtered revenue across active campaigns</p>
+        </div>
+
+        <div className="bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-outline-variant text-xs font-label-md text-on-surface-variant uppercase tracking-wider">
+                <th className="p-4">Ad ID</th>
+                <th className="p-4">Campaign</th>
+                <th className="p-4">Format</th>
+                <th className="p-4 text-right">CTR</th>
+                <th className="p-4 text-right">Revenue</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-outline-variant">
+              {topAds.map((ad, idx) => (
+                <tr key={ad.id} className="hover:bg-surface-container transition-colors">
+                  <td className="p-4 font-mono text-sm text-primary">#{idx + 1} {ad.id}</td>
+                  <td className="p-4 text-sm text-on-surface-variant">{ad.campaign}</td>
+                  <td className="p-4 text-sm text-on-surface-variant">{ad.format}</td>
+                  <td className="p-4 text-right text-sm font-bold text-tertiary">{ad.ctr}%</td>
+                  <td className="p-4 text-right text-sm font-mono text-on-surface">${ad.revenue.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       {/* ========== SECTION 4: COMPLIANCE & PERFORMANCE REPORTS (UPGRADED) ========== */}
       <section>
         <div className="flex justify-between items-end mb-6">
@@ -815,7 +887,7 @@ export default function Campaigns() {
           </div>
         </div>
 
-        {/* Right Panel - Fraud Summary + Automated Optimization */}
+        {/* Right Panel - Fraud Summary + Smart Placement Agent */}
         <div className="space-y-4">
           {/* Fraud Summary */}
           <div className="bg-surface-container-low border border-outline-variant rounded-xl p-5">
@@ -849,32 +921,32 @@ export default function Campaigns() {
             </div>
           </div>
 
-          {/* Automated Optimization */}
+          {/* Smart Placement Agent — PRD Module 6: Reinforcement Learning Ad Placement */}
           <div className="bg-surface-container-low border border-outline-variant rounded-xl p-5 space-y-3">
-            <h4 className="font-title-md text-title-md">Automated Optimization</h4>
-            <p className="font-body-sm text-on-surface-variant text-xs">Our AI is currently managing 4 micro-adjustments per hour to maximize your ROAS.</p>
+            <div className="flex justify-between items-start">
+              <h4 className="font-title-md text-title-md">Smart Placement Agent</h4>
+              <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-tertiary/10 text-tertiary uppercase tracking-wider">PPO</span>
+            </div>
+            <p className="font-body-sm text-on-surface-variant text-xs">RL agent learning optimal position, format, and timing from live engagement reward signals.</p>
 
             <div className="space-y-3 mt-4">
-              <div className="flex justify-between items-center p-3 bg-surface-container rounded-lg border-l-4 border-primary">
-                <div>
-                  <p className="text-xs font-label-md text-on-surface-variant">Last Action</p>
-                  <p className="text-sm font-bold">CPC Cap Reduced</p>
+              {placementLog.map((entry, idx) => (
+                <div
+                  key={idx}
+                  className={`flex justify-between items-center p-3 bg-surface-container rounded-lg border-l-4 ${idx === 0 ? 'border-primary' : idx === 1 ? 'border-tertiary' : 'border-info'}`}
+                >
+                  <div>
+                    <p className="text-xs font-label-md text-on-surface-variant">{idx === 0 ? 'Last Action' : `Episode ${entry.episode}`}</p>
+                    <p className="text-sm font-bold">{entry.action}</p>
+                  </div>
+                  <span className="text-xs font-mono text-tertiary">reward {entry.expectedReward}</span>
                 </div>
-                <span className="text-xs text-on-surface-variant">2m ago</span>
-              </div>
-
-              <div className="flex justify-between items-center p-3 bg-surface-container rounded-lg border-l-4 border-tertiary">
-                <div>
-                  <p className="text-xs font-label-md text-on-surface-variant">Insight Score</p>
-                  <p className="text-sm font-bold">98/100 Efficiency</p>
-                </div>
-                <span className="material-symbols-outlined text-tertiary">bolt</span>
-              </div>
+              ))}
 
               <div className="flex justify-between items-center p-3 bg-surface-container rounded-lg border-l-4 border-info">
                 <div>
-                  <p className="text-xs font-label-md text-on-surface-variant">Next Scheduled Action</p>
-                  <p className="text-sm font-bold">Bid Coefficient Update</p>
+                  <p className="text-xs font-label-md text-on-surface-variant">Next Policy Update</p>
+                  <p className="text-sm font-bold">Reward Re-evaluation</p>
                 </div>
                 <span className="text-xs font-mono text-info">{formatCountdown(countdown)}</span>
               </div>

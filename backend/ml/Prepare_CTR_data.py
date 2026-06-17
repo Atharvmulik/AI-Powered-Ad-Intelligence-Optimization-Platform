@@ -1,5 +1,5 @@
 """
-Prepare_data.py
+Prepare_CTR_data.py
 ===============
 PURPOSE : Clean, encode, and engineer features from the 5M Criteo sample.
           Produces train/validation/test splits ready for model training.
@@ -319,7 +319,7 @@ def main():
     print(f"    feature_cols.pkl  — ordered feature list for model input")
     print(f"\n  Processed data saved in {OUTPUT_DIR}/:")
     print(f"    processed_splits.npz  — train/val/test arrays")
-    print(f"\n➡️   Next step: python ml/train.py")
+    print(f"\n➡️   Next step: python ml/train_CTR.py")
 
 
 if __name__ == "__main__":

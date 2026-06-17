@@ -1,5 +1,5 @@
 """
-evaluate.py
+evaluate_CTR.py
 ===========
 PURPOSE : Comprehensive evaluation of all trained CTR models.
           Run AFTER train.py has completed.

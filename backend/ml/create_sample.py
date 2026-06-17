@@ -110,7 +110,7 @@ def create_sample():
     print(f"    Shape : {df.shape[0]:,} rows × {df.shape[1]} columns")
     print(f"    Size  : {size_mb:.0f} MB on disk")
     print("=" * 65)
-    print("\n➡️   Next step: python ml/Prepare_data.py")
+    print("\n➡️   Next step: python ml/Prepare_CTR_data.py")
 
 
 if __name__ == "__main__":

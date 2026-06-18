@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 
 export default function RealTimeEvents() {
   const [isPaused, setIsPaused] = useState(false)
@@ -20,12 +20,12 @@ export default function RealTimeEvents() {
   const terminalEndRef = useRef(null)
   const exportRef = useRef(null)
 
-  const eventTypes = [
+  const eventTypes = useMemo(() => [
     { label: 'CLICK', color: 'text-primary', msgColor: 'text-on-surface', pattern: 'evt_{}_clnk | campaign_id: AD_{} | score: {}' },
     { label: 'FRAUD', color: 'text-error', msgColor: 'text-error', pattern: 'BLOCKED | reason: high_velocity | ip: 45.2.{}.{}' },
     { label: 'PRED', color: 'text-tertiary', msgColor: 'text-tertiary', pattern: 'MODEL_HIT | p_conv: {} | recommended_bid: ${}' },
     { label: 'SHAP', color: 'text-yellow-400', msgColor: 'text-yellow-400', pattern: 'EXPLAIN | ad_id: AD_{} | top_feat: user_interest(+{}) device_type(+{}) time_of_day(+{})' }
-  ]
+  ], [])
 
   // Calculate event distribution counts
   const getEventCounts = useCallback(() => {
@@ -45,15 +45,7 @@ export default function RealTimeEvents() {
     return count === 0 ? minHeight : (count / maxCount) * maxHeight
   }
 
-  // Update latency history
-  useEffect(() => {
-    if (!isPaused) {
-      setLatencyHistory(prev => {
-        const newHistory = [...prev.slice(-19), kafkaLatency]
-        return newHistory
-      })
-    }
-  }, [kafkaLatency, isPaused])
+  // (latencyHistory is updated inside the stats interval below)
 
   // Simulate real-time stats fluctuations
   useEffect(() => {
@@ -65,7 +57,10 @@ export default function RealTimeEvents() {
       })
       setKafkaLatency(prev => {
         const diff = Math.floor((Math.random() - 0.5) * 4)
-        return Math.max(9, Math.min(18, prev + diff))
+        const next = Math.max(9, Math.min(18, prev + diff))
+        // Update latency history inline to avoid cascading setState in a separate effect
+        setLatencyHistory(h => [...h.slice(-19), next])
+        return next
       })
       setTotalEvents(prev => +(prev + 0.001).toFixed(3))
     }, 3000)
@@ -118,7 +113,7 @@ export default function RealTimeEvents() {
       })
     }, 1500)
     return () => clearInterval(logTimer)
-  }, [isPaused])
+  }, [isPaused, eventTypes])
 
   // Auto-scroll terminal
   useEffect(() => {

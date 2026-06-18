@@ -1,19 +1,5 @@
-import { NavLink, useNavigate } from 'react-router-dom'
-
-const navItems = [
-  { to: '/', icon: 'dashboard', label: 'Dashboard', exact: true },
-  { to: '/dashboard/ad-management', icon: 'ads_click', label: 'Ad Management' },
-  { to: '/dashboard/campaigns', icon: 'campaign', label: 'Campaigns' },
-  { to: '/dashboard/analytics', icon: 'analytics', label: 'Analytics' },
-  { to: '/dashboard/ai-insights', icon: 'psychology', label: 'AI Insights' },
-  { to: '/dashboard/audience', icon: 'groups', label: 'Audience' },
-  { to: '/dashboard/system-health', icon: 'health_and_safety', label: 'System Health' },
-  { to: '/dashboard/real-time-events', icon: 'sensors', label: 'Real-Time Events' },
-]
-
-const bottomItems = [
-  { to: '/settings', icon: 'settings', label: 'Settings' },
-]
+import { NavLink } from 'react-router-dom'
+import { navItems, bottomItems } from '@/constants/navigation'
 
 export default function Sidebar() {
   return (

@@ -9,8 +9,13 @@ lerna-debug.log*
 
 node_modules
 dist
-dist-ssr
 *.local
+.env.local
+.env.production.local
+*.tsbuildinfo
+coverage/
+dist/
+dist-ssr/
 
 # Editor directories and files
 .vscode/*

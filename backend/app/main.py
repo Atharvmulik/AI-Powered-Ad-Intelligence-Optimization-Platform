@@ -1,92 +1,125 @@
 """
-main.py
-=======
-FastAPI application entry point for the
-AI-Powered Ad Intelligence Optimization Platform.
+Ad Intelligence Platform — FastAPI application entry point.
 
-Registered services:
-  /api/v1/predict/click        — CTR Click Prediction Engine
-  /api/v1/predict/click/batch  — Batch prediction (Kafka consumer)
+Registers:
+  - Dashboard REST router  (/api/v1/dashboard/*)
+  - Dashboard WebSocket    (/ws/dashboard/live)
+  - CORS middleware
+  - Global exception handler
+  - DB lifespan (engine connect / dispose)
 
-Future services to add here:
-  /api/v1/fraud                — Fraud Detection Service
-  /api/v1/recommend            — Ad Recommendation Engine
-  /api/v1/analytics            — Analytics & Reporting
+Run with:
+    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 """
 
-from fastapi import FastAPI
+from __future__ import annotations
+
+import logging
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
-from app.api.v1.click import router as click_router
+from app.db.session import engine
+from app.api.v1.dashboard import router as dashboard_router
+from app.websocket.dashboard_ws import dashboard_live_ws
 
-# ── App instance ──────────────────────────────────────────────────────────────
-app = FastAPI(
-    title       = "AI-Powered Ad Intelligence Optimization Platform",
-    description = (
-        "Real-time ML pipeline for click prediction, fraud detection, "
-        "and ad recommendation. Built with XGBoost, LightGBM, and FastAPI."
-    ),
-    version     = "1.0.0",
-    docs_url    = "/docs",      # Swagger UI  → http://localhost:8000/docs
-    redoc_url   = "/redoc",     # ReDoc UI    → http://localhost:8000/redoc
-)
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
-# ── CORS ──────────────────────────────────────────────────────────────────────
-# Allows your React dashboard (localhost:3000) to call this API
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins     = ["http://localhost:3000",
-                         "http://localhost:5173",   # Vite dev server
-                         "http://127.0.0.1:3000"],
-    allow_credentials = True,
-    allow_methods     = ["*"],
-    allow_headers     = ["*"],
-)
 
-# ── Routers ───────────────────────────────────────────────────────────────────
-app.include_router(click_router, prefix="/api/v1")
+# ---------------------------------------------------------------------------
+# Lifespan — startup / shutdown hooks
+# ---------------------------------------------------------------------------
 
-# Future routers — uncomment as you build each service:
-# from app.api.v1.fraud      import router as fraud_router
-# from app.api.v1.recommend  import router as recommend_router
-# from app.api.v1.analytics  import router as analytics_router
-# app.include_router(fraud_router,     prefix="/api/v1")
-# app.include_router(recommend_router, prefix="/api/v1")
-# app.include_router(analytics_router, prefix="/api/v1")
-
-# ── Health check ──────────────────────────────────────────────────────────────
-@app.get("/health", tags=["System"])
-async def health_check():
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
-    Quick liveness check for the API.
-    Hit this first to confirm the server is running.
+    Application lifespan context.
+
+    Startup  : verify DB connectivity, warm Redis if configured.
+    Shutdown : dispose DB engine, close Kafka producer.
     """
-    return {
-        "status"  : "healthy",
-        "platform": "AI-Powered Ad Intelligence Optimization Platform",
-        "version" : "1.0.0",
-        "docs"    : "http://localhost:8000/docs",
-    }
+    logger.info("Starting Ad Intelligence Platform …")
+
+    # Verify DB connection on startup
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(lambda _: None)
+        logger.info("PostgreSQL connection verified.")
+    except Exception as exc:
+        logger.critical("Cannot connect to PostgreSQL: %s", exc)
+        raise
+
+    # ── Redis warm-up stub ──────────────────────────────────────────────
+    # from app.db.session import redis_client
+    # await redis_client.ping()
+    # logger.info("Redis connection verified.")
+    # ────────────────────────────────────────────────────────────────────
+
+    # ── Kafka producer startup stub ─────────────────────────────────────
+    # from app.db.session import kafka_producer
+    # await kafka_producer.start()
+    # logger.info("Kafka producer started.")
+    # ────────────────────────────────────────────────────────────────────
+
+    yield  # application is running
+
+    # Shutdown
+    logger.info("Shutting down …")
+    await engine.dispose()
+
+    # ── Kafka producer shutdown stub ────────────────────────────────────
+    # await kafka_producer.stop()
+    # ────────────────────────────────────────────────────────────────────
 
 
-@app.get("/", tags=["System"])
-async def root():
-    return {
-        "message" : "Ad Intelligence Platform API is running.",
-        "docs"    : "http://localhost:8000/docs",
-        "health"  : "http://localhost:8000/health",
-    }
+# ---------------------------------------------------------------------------
+# Application factory
+# ---------------------------------------------------------------------------
 
-
-# ── Run directly ──────────────────────────────────────────────────────────────
-# Use this for development only.
-# Production: use uvicorn with gunicorn workers.
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        "app.main:app",
-        host     = "0.0.0.0",
-        port     = 8000,
-        reload   = True,    # auto-reload on code changes
-        log_level= "info",
+def create_app() -> FastAPI:
+    application = FastAPI(
+        title="Ad Intelligence Platform API",
+        description=(
+            "Production API for the AI-Powered Ad Intelligence and CTR "
+            "Optimization Platform.  Exposes analytics, fraud signals, "
+            "campaign metrics, and a real-time WebSocket feed."
+        ),
+        version="1.0.0",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
+        lifespan=lifespan,
     )
+
+    # ── CORS ────────────────────────────────────────────────────────────
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],          # Tighten for production
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # ── REST routers ────────────────────────────────────────────────────
+    application.include_router(dashboard_router, prefix="/api/v1")
+
+    # ── WebSocket routes ────────────────────────────────────────────────
+    application.add_api_websocket_route("/ws/dashboard/live", dashboard_live_ws)
+
+    # ── Global exception handler ─────────────────────────────────────────
+    @application.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+        logger.exception("Unhandled exception on %s %s", request.method, request.url)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "An internal server error occurred."},
+        )
+
+    return application
+
+
+app: FastAPI = create_app()

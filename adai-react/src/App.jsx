@@ -10,7 +10,6 @@ import Campaigns from './pages/Campaigns'
 import RealTimeEvents from './pages/RealTimeEvents'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
-import SignupPage from './pages/SignupPage'
 
 // Simple auth check — replace with real JWT/context later
 function isAuthenticated() {

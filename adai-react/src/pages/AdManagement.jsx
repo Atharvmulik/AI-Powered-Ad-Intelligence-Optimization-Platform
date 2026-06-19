@@ -1,4 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+
+// Allowed audience tags list
+const allowedAudienceTags = [
+  'Gen-Z', 'Millennials', 'Urban Commuters', 'Tech Early Adopters', 'Sports Enthusiasts',
+  'Gamers', 'Parents', 'Students', 'Professionals', 'High-Income', 'Budget-Conscious',
+  'Mobile Users', 'Desktop Users', 'Night Owls', 'Weekend Shoppers'
+]
 
 export default function AdManagement() {
   // Gauge animation state
@@ -8,7 +15,6 @@ export default function AdManagement() {
   const [tags, setTags] = useState(['Gen-Z', 'Urban Commuters', 'Tech Early Adopters'])
   const [newTagInput, setNewTagInput] = useState('')
   const [showAddTag, setShowAddTag] = useState(false)
-  const [tagAutocompleteSuggestions, setTagAutocompleteSuggestions] = useState([])
   const [tagValidationError, setTagValidationError] = useState('')
 
   // Real-time log terminal state
@@ -20,13 +26,13 @@ export default function AdManagement() {
   ])
   const terminalEndRef = useRef(null)
 
-  const phrases = [
+  const phrases = useMemo(() => [
     { type: 'OPTIMIZATION:', msg: 'Shifted 10% budget towards mobile iOS devices.' },
     { type: 'FRAUD_DETECTION:', msg: 'Blocked suspicious traffic burst from node IP.202.12.x.' },
     { type: 'INGESTION:', msg: 'Synced active bid adjustments to all edge routers.' },
     { type: 'COMPLIANCE:', msg: 'Auto-flagged campaign Titan Smart for CTR anomaly.' },
     { type: 'INTELLIGENCE:', msg: 'Determined high CTR correlation with target "Solo Travelers".' }
-  ]
+  ], [])
 
   // New state variables for the form
   const [adFormat, setAdFormat] = useState('Banner')
@@ -39,14 +45,8 @@ export default function AdManagement() {
   const [showKeywordInput, setShowKeywordInput] = useState(false)
   const [campaignTitle, setCampaignTitle] = useState('')
   const [dailyBudget, setDailyBudget] = useState('')
-  const [dateError, setDateError] = useState('')
 
-  // Allowed audience tags list
-  const allowedAudienceTags = [
-    'Gen-Z', 'Millennials', 'Urban Commuters', 'Tech Early Adopters', 'Sports Enthusiasts',
-    'Gamers', 'Parents', 'Students', 'Professionals', 'High-Income', 'Budget-Conscious',
-    'Mobile Users', 'Desktop Users', 'Night Owls', 'Weekend Shoppers'
-  ]
+
 
   // Predefined suggestions for keywords
   const keywordSuggestions = ['performance', 'lifestyle', 'premium', 'sale', 'new arrival', 'trending', 'limited edition']
@@ -70,7 +70,7 @@ export default function AdManagement() {
       })
     }, 4500)
     return () => clearInterval(id)
-  }, [])
+  }, [phrases])
 
   useEffect(() => {
     if (terminalEndRef.current) {
@@ -78,29 +78,24 @@ export default function AdManagement() {
     }
   }, [logs])
 
-  // Filter autocomplete suggestions based on input
-  useEffect(() => {
+  // Derive autocomplete suggestions from input (no effect needed)
+  const tagAutocompleteSuggestions = useMemo(() => {
     if (newTagInput.trim()) {
-      const filtered = allowedAudienceTags.filter(tag =>
+      return allowedAudienceTags.filter(tag =>
         tag.toLowerCase().includes(newTagInput.toLowerCase())
-      )
-      setTagAutocompleteSuggestions(filtered.slice(0, 5))
-    } else {
-      setTagAutocompleteSuggestions([])
+      ).slice(0, 5)
     }
+    return []
   }, [newTagInput])
 
-  // Validate dates
-  useEffect(() => {
+  // Derive date validation from state (no effect needed)
+  const dateError = useMemo(() => {
     if (startDate && endDate) {
       if (new Date(endDate) < new Date(startDate)) {
-        setDateError('End date must be after start date')
-      } else {
-        setDateError('')
+        return 'End date must be after start date'
       }
-    } else {
-      setDateError('')
     }
+    return ''
   }, [startDate, endDate])
 
   const handleAddTag = (tagToAdd) => {
@@ -111,7 +106,6 @@ export default function AdManagement() {
         setNewTagInput('')
         setShowAddTag(false)
         setTagValidationError('')
-        setTagAutocompleteSuggestions([])
       } else {
         setTagValidationError('Please select a valid audience segment')
       }

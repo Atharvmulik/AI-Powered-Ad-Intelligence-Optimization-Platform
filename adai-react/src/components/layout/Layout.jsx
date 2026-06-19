@@ -1,28 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
-
-const pageTitles = {
-  '/': 'AdAI Intelligence',
-  '/ad-management': 'Ad Management',
-  '/campaigns': 'Campaigns & Reports',
-  '/analytics': 'Analytics Overview',
-  '/ai-insights': 'AI Insights',
-  '/audience': 'Audience',
-  '/system-health': 'System Health',
-  '/real-time-events': 'Real-Time Events',
-}
-
-const searchPlaceholders = {
-  '/': 'Search insights...',
-  '/ad-management': 'Search intelligent ads...',
-  '/campaigns': 'Search analytics, campaigns, reports...',
-  '/analytics': 'Search analytics...',
-  '/ai-insights': 'Search predictions or models...',
-  '/audience': 'Search audience clusters...',
-  '/system-health': 'Search system metrics...',
-  '/real-time-events': 'Search event logs, IPs, or campaign IDs...',
-}
+import { pageTitles, searchPlaceholders } from '@/constants/navigation'
 
 export default function Layout() {
   const { pathname } = useLocation()

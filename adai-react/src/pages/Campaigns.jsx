@@ -1,6 +1,22 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
+// Custom tooltip must be declared outside the component to avoid
+// 'cannot create components during render' lint error
+function CampaignChartTooltip({ active, payload }) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-surface-container border border-outline-variant rounded-lg p-3 shadow-lg">
+        <p className="text-xs text-on-surface-variant mb-1">{payload[0]?.payload.time}</p>
+        <p className="text-sm text-primary">CTR: {payload[0]?.value?.toFixed(2)}%</p>
+        <p className="text-sm text-error">Fraud Rate: {payload[1]?.value?.toFixed(2)}%</p>
+        <p className="text-xs text-on-surface-variant mt-1">Events: {payload[0]?.payload.events.toLocaleString()}</p>
+      </div>
+    )
+  }
+  return null
+}
+
 export default function Campaigns() {
   // ========== LIVE CHART DATA ==========
   const [ctrData, setCtrData] = useState(() => {
@@ -24,7 +40,7 @@ export default function Campaigns() {
   const [avgLatency, setAvgLatency] = useState(24)
 
   // ========== FRAUD EVENT FEED ==========
-  const [fraudEvents, setFraudEvents] = useState([
+  const [fraudEvents, setFraudEvents] = useState(() => [
     { id: 1, timestamp: new Date(Date.now() - 300000).toLocaleTimeString(), ip: '192.168.14.82', score: 0.94, category: 'Bot Traffic', campaign: 'Summer Sale 2024', action: 'Blocked', device: 'Chrome 124 • Windows • Desktop' },
     { id: 2, timestamp: new Date(Date.now() - 250000).toLocaleTimeString(), ip: '45.33.22.11', score: 0.87, category: 'Click Farm', campaign: 'Back to School', action: 'Blocked', device: 'Firefox 121 • Android • Mobile' },
     { id: 3, timestamp: new Date(Date.now() - 200000).toLocaleTimeString(), ip: '10.12.45.67', score: 0.56, category: 'Suspicious Human', campaign: 'Summer Sale 2024', action: 'Flagged', device: 'Safari 17 • iOS • Mobile' },
@@ -271,19 +287,7 @@ export default function Campaigns() {
     return 'High Risk'
   }
 
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-surface-container border border-outline-variant rounded-lg p-3 shadow-lg">
-          <p className="text-xs text-on-surface-variant mb-1">{payload[0]?.payload.time}</p>
-          <p className="text-sm text-primary">CTR: {payload[0]?.value?.toFixed(2)}%</p>
-          <p className="text-sm text-error">Fraud Rate: {payload[1]?.value?.toFixed(2)}%</p>
-          <p className="text-xs text-on-surface-variant mt-1">Events: {payload[0]?.payload.events.toLocaleString()}</p>
-        </div>
-      )
-    }
-    return null
-  }
+
 
   return (
     <div className="space-y-stack-lg">
@@ -327,7 +331,7 @@ export default function Campaigns() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#1a1a24" />
                 <XAxis dataKey="time" stroke="#6b7280" fontSize={10} tickLine={false} />
                 <YAxis stroke="#6b7280" fontSize={10} tickLine={false} unit="%" />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<CampaignChartTooltip />} />
                 <Legend />
                 <Line type="monotone" dataKey="ctr" stroke="#6366f1" strokeWidth={2} dot={false} name="CTR" unit="%" />
                 <Line type="monotone" dataKey="fraudRate" stroke="#ef4444" strokeWidth={2} dot={false} name="Fraud Rate" unit="%" />
@@ -842,7 +846,7 @@ export default function Campaigns() {
           </div>
 
           <div ref={fraudFeedEndRef} className="h-[400px] overflow-y-auto space-y-2 p-4">
-            {fraudEvents.map((event, idx) => (
+            {fraudEvents.map((event) => (
               <div key={event.id} className="bg-surface-container/50 border border-outline-variant rounded-lg p-3 hover:bg-surface-container transition-all animate-fadeIn">
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center gap-3">

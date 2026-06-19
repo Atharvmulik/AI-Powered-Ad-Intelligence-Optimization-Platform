@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine
 } from 'recharts'
@@ -14,7 +14,7 @@ export default function SystemHealth() {
   const consoleRef = useRef(null)
 
   // Expanded phrases including PRD fraud & ML retraining logs
-  const phrases = [
+  const phrases = useMemo(() => [
     { type: 'INFO', msg: 'DB Connection pool scaled up to 45 connections.', color: 'text-primary' },
     { type: 'SUCCESS', msg: 'Aggregated analytics sync complete in 21ms.', color: 'text-green-400' },
     { type: 'WARN', msg: 'Higher memory overhead on worker 1C. Garbage collection scheduled.', color: 'text-tertiary' },
@@ -25,10 +25,11 @@ export default function SystemHealth() {
     { type: 'INFO', msg: 'Kafka topic fraud-flags consumer lag: 3ms. Within threshold.', color: 'text-primary' },
     { type: 'WARN', msg: 'SHAP explanation latency at 48ms. Approaching 50ms SLA limit.', color: 'text-tertiary' },
     { type: 'INFO', msg: 'ML model version v2.4.1 promoted to production via MLflow registry.', color: 'text-primary' }
-  ]
+  ], [])
 
   // Chart data state (EU and US latency time series)
-  const generateInitialChartData = () => {
+  // Lazy initializer for useState — runs once, not during re-renders
+  const [chartData, setChartData] = useState(() => {
     const data = []
     let baseTime = new Date()
     baseTime.setHours(8, 0, 0, 0)
@@ -41,9 +42,7 @@ export default function SystemHealth() {
       })
     }
     return data
-  }
-
-  const [chartData, setChartData] = useState(generateInitialChartData())
+  })
 
   // Auto-update chart every 5 seconds
   useEffect(() => {
@@ -66,26 +65,20 @@ export default function SystemHealth() {
   // Sparkline data for Kafka throughput (8 bars)
   const [sparklineData, setSparklineData] = useState([11200, 11800, 12500, 13100, 12800, 13500, 12900, 12847])
 
-  // Auto-update Kafka throughput every 3 seconds
+  // Auto-update Kafka throughput every 3 seconds and update sparkline inline
   useEffect(() => {
     const interval = setInterval(() => {
       setKafkaThroughput(prev => {
         const variation = Math.floor(Math.random() * 1000) - 500
         let newVal = prev + variation
         newVal = Math.min(14500, Math.max(10000, newVal))
+        // Update sparkline inline to avoid cascading setState in a separate effect
+        setSparklineData(s => [...s.slice(1), newVal])
         return newVal
       })
     }, 3000)
     return () => clearInterval(interval)
   }, [])
-
-  // Update sparkline data when throughput changes
-  useEffect(() => {
-    setSparklineData(prev => {
-      const newData = [...prev.slice(1), kafkaThroughput]
-      return newData
-    })
-  }, [kafkaThroughput])
 
   // Memory pressure values in GB
   const appGB = 38.4
@@ -105,7 +98,7 @@ export default function SystemHealth() {
       })
     }, 4500)
     return () => clearInterval(id)
-  }, [])
+  }, [phrases])
 
   useEffect(() => {
     if (consoleRef.current) {

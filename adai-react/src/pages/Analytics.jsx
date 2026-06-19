@@ -1,23 +1,15 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const rand = (min, max) => Math.random() * (max - min) + min
 const randInt = (min, max) => Math.floor(rand(min, max + 1))
 const fmt = (d) =>
   d.toLocaleTimeString('en-GB', { hour12: false })
-const nowLabel = () => {
-  const d = new Date()
-  const now = d.toLocaleString('en-IN', { month: 'short', year: 'numeric' })
-  return now
-}
-const currentMonthRange = () => {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = d.getMonth()
-  const first = new Date(y, m, 1)
-  const last = new Date(y, m + 1, 0)
-  const opts = { day: '2-digit', month: 'short', year: 'numeric' }
-  return `${first.toLocaleDateString('en-IN', opts)} – ${last.toLocaleDateString('en-IN', opts)}`
+
+let toastIdCounter = 0
+const generateToastId = () => {
+  toastIdCounter += 1
+  return toastIdCounter
 }
 
 // --- Date range helpers ---
@@ -47,10 +39,11 @@ const getDateRange = (preset, referenceDate = null) => {
     case 'Last 90 Days':
       start.setDate(today.getDate() - 90)
       break
-    case 'This Quarter':
+    case 'This Quarter': {
       const quarterMonth = Math.floor(today.getMonth() / 3) * 3
       start = new Date(today.getFullYear(), quarterMonth, 1)
       break
+    }
     default:
       start.setDate(today.getDate() - 30)
   }
@@ -104,11 +97,7 @@ const TOP_ADS = [
 const MAX_CTR_BAR = 4.8
 
 // ─── Toast Context ─────────────────────────────────────────────────────────────
-const TOAST_TYPES = {
-  SUCCESS: 'success',
-  ERROR: 'error',
-  INFO: 'info',
-}
+
 
 const Toast = ({ id, type, message, onDismiss }) => {
   useEffect(() => {
@@ -159,7 +148,7 @@ function LiveCTRChart({ dataPoints }) {
   const toX = (i) => PAD.left + (i / (dataPoints.length - 1)) * chartW
   const toY = (v) => PAD.top + chartH - ((v - minY) / (maxY - minY)) * chartH
 
-  const pts = dataPoints.map((v, i) => `${toX(i)},${toY(v)}`).join(' ')
+  const pts = dataPoints.map((pt, i) => `${toX(i)},${toY(pt.value)}`).join(' ')
 
   const targetY = toY(2.5)
 
@@ -170,7 +159,7 @@ function LiveCTRChart({ dataPoints }) {
     .map((_, i) => i)
     .filter((i) => i % 5 === 0 || i === dataPoints.length - 1)
 
-  const current = dataPoints[dataPoints.length - 1]
+  const current = dataPoints[dataPoints.length - 1]?.value || 0
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
@@ -232,7 +221,7 @@ function LiveCTRChart({ dataPoints }) {
       {/* X-axis labels */}
       {xLabels.map((i) => (
         <text key={i} x={toX(i)} y={H - PAD.bottom + 14} textAnchor="middle" fontSize="8" fill="#6b6b8a">
-          {new Date(Date.now() - (dataPoints.length - 1 - i) * 5000).toLocaleTimeString('en-GB', { hour12: false })}
+          {new Date(dataPoints[i].time).toLocaleTimeString('en-GB', { hour12: false })}
         </text>
       ))}
 
@@ -274,9 +263,17 @@ export default function Analytics() {
   const [prevFraud, setPrevFraud] = useState(3.2)
 
   // ── CTR chart state ──
-  const [ctrPoints, setCtrPoints] = useState(() =>
-    Array.from({ length: 20 }, () => parseFloat(rand(1.8, 3.4).toFixed(2)))
-  )
+  const [ctrPoints, setCtrPoints] = useState(() => {
+    const pts = []
+    const now = Date.now()
+    for (let i = 0; i < 20; i++) {
+      pts.push({
+        value: parseFloat(rand(1.8, 3.4).toFixed(2)),
+        time: now - (19 - i) * 5000
+      })
+    }
+    return pts
+  })
   const [currentCTR, setCurrentCTR] = useState(2.84)
 
   // ── Fraud table state ──
@@ -342,7 +339,7 @@ export default function Analytics() {
 
   // ── Add toast helper ──
   const addToast = (type, message) => {
-    const id = Math.random()
+    const id = generateToastId()
     setToasts(prev => [...prev, { id, type, message }])
   }
 
@@ -396,7 +393,7 @@ export default function Analytics() {
     const id = setInterval(() => {
       const v = parseFloat(rand(1.8, 3.4).toFixed(2))
       setCurrentCTR(v)
-      setCtrPoints(prev => [...prev.slice(1), v])
+      setCtrPoints(prev => [...prev.slice(1), { value: v, time: Date.now() }])
     }, 5000)
     return () => clearInterval(id)
   }, [])

@@ -1,14 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-import { 
-  ResponsiveContainer, 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend 
-} from 'recharts'
 
 // Generate SHAP data for a user
 const generateShapForUser = (isFraud) => {
@@ -122,21 +112,12 @@ export default function AIInsights() {
   const [blockedToday, setBlockedToday] = useState(47)
   const fraudTerminalRef = useRef(null)
 
-  // SHAP feature data state
-  const [shapFeatures, setShapFeatures] = useState([
-    { name: 'User_History_CTR', value: 0.65 },
-    { name: 'Ad_Category_Match', value: 0.48 },
-    { name: 'Time_of_Day', value: -0.20 },
-    { name: 'Device_Type', value: 0.32 },
-    { name: 'Historical_CTR', value: -0.15 },
-    { name: 'User_Interest_Vector', value: 0.41 }
-  ])
+
 
   // Model degradation simulation state
   const [isDegraded, setIsDegraded] = useState(false)
 
-  // Toast notification state
-  const [toast, setToast] = useState({ message: '', visible: false })
+
 
   // New state for redesigned section
   const [selectedPrediction, setSelectedPrediction] = useState(null)
@@ -243,13 +224,7 @@ export default function AIInsights() {
     }
   ])
 
-  // Show toast notification
-  const showToast = (message) => {
-    setToast({ message, visible: true })
-    setTimeout(() => {
-      setToast({ message: '', visible: false })
-    }, 3000)
-  }
+
 
   // Toggle ad explanation expansion
   const toggleAdExpansion = (id) => {
@@ -348,23 +323,7 @@ export default function AIInsights() {
     }
   }, [fraudAlerts])
 
-  // Dynamic SHAP simulation
-  useEffect(() => {
-    const shapInterval = setInterval(() => {
-      setShapFeatures(prev => prev.map(feature => ({
-        ...feature,
-        value: feature.value + (Math.random() - 0.5) * 0.05
-      })))
-    }, 10000)
-    return () => clearInterval(shapInterval)
-  }, [])
 
-  // Get severity class for fraud alerts
-  const getFraudSeverityClass = (score) => {
-    if (score > 0.90) return 'critical'
-    if (score >= 0.70) return 'high'
-    return 'medium'
-  }
 
   // Get click probability badge color
   const getClickProbColor = (prob) => {
@@ -385,12 +344,6 @@ export default function AIInsights() {
 
   return (
     <div className="space-y-gutter relative">
-      {/* Toast Notification */}
-      {toast.visible && (
-        <div className="fixed bottom-4 right-4 bg-surface-container-high border border-primary/30 rounded-lg p-4 shadow-lg z-50 animate-in slide-in-from-bottom-2">
-          <p className="text-primary font-mono text-sm">{toast.message}</p>
-        </div>
-      )}
 
       {/* Model degradation warning banner */}
       {isDegraded && (
@@ -501,6 +454,10 @@ export default function AIInsights() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-label-md text-on-surface-variant uppercase tracking-wider">Avg latency</span>
                 <span className="text-label-md font-bold text-primary font-mono">14ms</span>
+              </div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-label-md text-on-surface-variant uppercase tracking-wider">Blocked Today</span>
+                <span className="text-label-md font-bold text-primary font-mono">{blockedToday}</span>
               </div>
               <div className="flex items-center justify-between text-[10px] text-on-surface-variant font-mono">
                 <span>Retrained 45min ago · Next in 23h</span>

@@ -8,6 +8,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     Float,
+    ForeignKey,
     Index,
     Integer,
     String,
@@ -129,6 +130,89 @@ class AdCampaign(Base):
         index=True,
     )
 
+    bid_strategy: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="CPC",
+    )
+
+    target_demographics: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    fraud_risk: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="Low",
+        index=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+# ---------------------------------------------------------------------------
+# ad_creatives
+# ---------------------------------------------------------------------------
+
+class AdCreative(Base):
+    __tablename__ = "ad_creatives"
+
+    ad_id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    campaign_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("ad_campaigns.campaign_id"),
+        nullable=False,
+        index=True,
+    )
+
+    format: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="Banner",
+    )
+
+    category: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+
+    keywords: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    image_url: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="DRAFT",
+        index=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+    __table_args__ = (
+        Index("ix_ad_creatives_campaign_status", "campaign_id", "status"),
+    )
 
 # ---------------------------------------------------------------------------
 # click_events

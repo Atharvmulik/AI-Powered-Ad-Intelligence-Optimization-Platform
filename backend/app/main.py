@@ -27,7 +27,8 @@ from app.api.v1.dashboard import router as dashboard_router
 from app.api.v1 import ad_management
 from app.websocket.dashboard_ws import dashboard_live_ws
 from app.websocket.ad_management_ws import ad_management_live_ws
-
+from app.api.v1.campaigns import router as campaigns_router
+from app.websocket.campaigns_ws import router as campaigns_ws_router
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -113,6 +114,8 @@ def create_app() -> FastAPI:
     # ── WebSocket routes ────────────────────────────────────────────────
     application.add_api_websocket_route("/ws/dashboard/live", dashboard_live_ws)
     application.add_api_websocket_route("/ws/ad-management/analysis-log", ad_management_live_ws)  
+    application.include_router(campaigns_router, prefix="/api/v1")
+    application.include_router(campaigns_ws_router)
 
     # ── Global exception handler ─────────────────────────────────────────
     @application.exception_handler(Exception)

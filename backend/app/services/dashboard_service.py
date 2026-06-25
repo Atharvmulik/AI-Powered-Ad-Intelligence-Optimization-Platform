@@ -150,10 +150,17 @@ class DashboardService:
 
         # active users — last 15 minutes
         active_result = await db.execute(
-            select(func.count(func.distinct(User.user_id)))
-            .where(User.last_active >= window_15m)
-        )
-        active_users: int = active_result.scalar_one() or 0
+        select(func.count(func.distinct(User.user_id)))
+        .where(User.last_active >= window_15m)
+    )
+
+        active_users = active_result.scalar_one() or 0
+
+        if active_users == 0:
+            total_users_result = await db.execute(
+                select(func.count()).select_from(User)
+            )
+        active_users = total_users_result.scalar_one() or 0
 
         # fraud score — average scaled to 0–100
         fraud_avg_result = await db.execute(
@@ -338,21 +345,37 @@ class DashboardService:
         hour_bucket = func.date_trunc("hour", ClickEvent.timestamp)
 
         result = await db.execute(
-            select(
-                hour_bucket.label("hour"),
-                func.count().label("total"),
-                func.sum(
-                    case((ClickEvent.clicked == True, 1), else_=0)  # noqa: E712
-                ).label("clicked"),
-            )
-            .where(ClickEvent.timestamp >= since)
-            .group_by(hour_bucket)
-            .order_by(hour_bucket)
-        )
+    select(
+        hour_bucket.label("hour"),
+        func.count().label("total"),
+        func.sum(
+            case((ClickEvent.clicked == True, 1), else_=0)
+        ).label("clicked"),
+    )
+    .where(ClickEvent.timestamp >= since)
+    .group_by(hour_bucket)
+    .order_by(hour_bucket)
+)
 
         rows = result.all()
-        timestamps: List[datetime] = []
-        ctr_values: List[float] = []
+
+        if not rows:
+            result = await db.execute(
+                select(
+                    hour_bucket.label("hour"),
+                    func.count().label("total"),
+                    func.sum(
+                        case((ClickEvent.clicked == True, 1), else_=0)
+                    ).label("clicked"),
+                )
+                .group_by(hour_bucket)
+                .order_by(hour_bucket)
+                .limit(24)
+            )
+
+            rows = result.all()
+            timestamps: List[datetime] = []
+            ctr_values: List[float] = []
 
         for row in rows:
             total = row.total or 0
@@ -896,6 +919,7 @@ class DashboardService:
         now = datetime.now(timezone.utc)
         window_15m = now - timedelta(minutes=15)
         window_1m = now - timedelta(minutes=1)
+        
 
         active_r = await db.execute(
             select(func.count(func.distinct(User.user_id))).where(User.last_active >= window_15m)
@@ -925,7 +949,7 @@ class DashboardService:
         revenue: float = float(rev_r.scalar_one() or 0.0)
 
         return DashboardLiveUpdate(
-            events_per_second=eps,
+            events_per_second=eps, 
             active_users=active_users,
             ctr=ctr,
             fraud_alert_count=fraud_alert_count,

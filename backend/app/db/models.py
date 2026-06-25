@@ -478,3 +478,188 @@ class MLPredictionLog(Base):
         Float,
         nullable=False,
     )
+
+
+
+
+# ---------------------------------------------------------------------------
+# reports
+# ---------------------------------------------------------------------------
+
+class Report(Base):
+    __tablename__ = "reports"
+
+    report_id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    title: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    report_type: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+
+    pages: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    size_mb: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0.0,
+    )
+
+    file_path: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# scheduled_reports
+# ---------------------------------------------------------------------------
+
+class ScheduledReport(Base):
+    __tablename__ = "scheduled_reports"
+
+    schedule_id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    frequency: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    next_run: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# placement_agent_logs
+# ---------------------------------------------------------------------------
+
+class PlacementAgentLog(Base):
+    __tablename__ = "placement_agent_logs"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    action: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    expected_reward: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+    )
+
+    episode: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        index=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# shap_insights
+# ---------------------------------------------------------------------------
+
+class ShapInsight(Base):
+    __tablename__ = "shap_insights"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    campaign_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("ad_campaigns.campaign_id"),
+        nullable=False,
+        index=True,
+    )
+
+    feature_name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    shap_value: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+    )
+
+    predicted_ctr: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+    )
+
+    auc_score: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_shap_campaign_feature",
+            "campaign_id",
+            "feature_name",
+        ),
+    )

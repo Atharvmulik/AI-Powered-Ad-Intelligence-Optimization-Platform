@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { campaignsService } from '@/services/campaignsService'
-import type { CampaignsState } from '@/types/campaigns'
+import type { CampaignsState, LivePerformance, CampaignIntelligenceItem, TopAd, Report, ScheduledReport, FraudFeed, FraudSummary, PlacementAgentLog, ShapInsight } from '@/types/campaigns'
 
 const initialState: CampaignsState = {
   loading: false,
@@ -24,20 +24,6 @@ export function useCampaigns() {
   const fetchAll = useCallback(async () => {
     setState(prev => ({ ...prev, loading: true, error: null }))
     try {
-      const requests = [
-        campaignsService.getLivePerformance(),
-        campaignsService.getCampaignIntelligence(),
-        campaignsService.getTopAds(),
-        campaignsService.getReports(),
-        campaignsService.getScheduledReports(),
-        campaignsService.getFraudFeed(),
-        campaignsService.getFraudSummary(),
-        campaignsService.getPlacementAgentLogs(),
-        campaignsService.getShapInsights(),
-      ]
-
-      const settled = await Promise.allSettled(requests)
-
       const [
         livePerformanceResult,
         campaignsResult,
@@ -48,35 +34,45 @@ export function useCampaigns() {
         fraudSummaryResult,
         placementAgentResult,
         shapInsightsResult,
-      ] = settled
+      ] = await Promise.allSettled([
+        campaignsService.getLivePerformance(),
+        campaignsService.getCampaignIntelligence(),
+        campaignsService.getTopAds(),
+        campaignsService.getReports(),
+        campaignsService.getScheduledReports(),
+        campaignsService.getFraudFeed(),
+        campaignsService.getFraudSummary(),
+        campaignsService.getPlacementAgentLogs(),
+        campaignsService.getShapInsights(),
+      ] as const)
 
       const errors: string[] = []
 
-      const livePerformance = livePerformanceResult.status === 'fulfilled' ? livePerformanceResult.value : null
+      const livePerformance: LivePerformance | null = livePerformanceResult.status === 'fulfilled' ? livePerformanceResult.value : null
       if (livePerformanceResult.status === 'rejected') errors.push(livePerformanceResult.reason?.message || 'livePerformance')
 
-      const campaigns = campaignsResult.status === 'fulfilled' ? campaignsResult.value : []
+      const campaigns: CampaignIntelligenceItem[] = campaignsResult.status === 'fulfilled' ? campaignsResult.value : []
       if (campaignsResult.status === 'rejected') errors.push(campaignsResult.reason?.message || 'campaigns')
 
-      const topAds = topAdsResult.status === 'fulfilled' ? topAdsResult.value : []
+      const topAds: TopAd[] = topAdsResult.status === 'fulfilled' ? topAdsResult.value : []
       if (topAdsResult.status === 'rejected') errors.push(topAdsResult.reason?.message || 'topAds')
 
-      const reports = reportsResult.status === 'fulfilled' ? reportsResult.value : []
+      const reports: Report[] = reportsResult.status === 'fulfilled' ? reportsResult.value : []
       if (reportsResult.status === 'rejected') errors.push(reportsResult.reason?.message || 'reports')
 
-      const scheduledReports = scheduledReportsResult.status === 'fulfilled' ? scheduledReportsResult.value : []
+      const scheduledReports: ScheduledReport[] = scheduledReportsResult.status === 'fulfilled' ? scheduledReportsResult.value : []
       if (scheduledReportsResult.status === 'rejected') errors.push(scheduledReportsResult.reason?.message || 'scheduledReports')
 
-      const fraudFeed = fraudFeedResult.status === 'fulfilled' ? fraudFeedResult.value : null
+      const fraudFeed: FraudFeed | null = fraudFeedResult.status === 'fulfilled' ? fraudFeedResult.value : null
       if (fraudFeedResult.status === 'rejected') errors.push(fraudFeedResult.reason?.message || 'fraudFeed')
 
-      const fraudSummary = fraudSummaryResult.status === 'fulfilled' ? fraudSummaryResult.value : null
+      const fraudSummary: FraudSummary | null = fraudSummaryResult.status === 'fulfilled' ? fraudSummaryResult.value : null
       if (fraudSummaryResult.status === 'rejected') errors.push(fraudSummaryResult.reason?.message || 'fraudSummary')
 
-      const placementAgent = placementAgentResult.status === 'fulfilled' ? placementAgentResult.value : []
+      const placementAgent: PlacementAgentLog[] = placementAgentResult.status === 'fulfilled' ? placementAgentResult.value : []
       if (placementAgentResult.status === 'rejected') errors.push(placementAgentResult.reason?.message || 'placementAgent')
 
-      const shapInsights = shapInsightsResult.status === 'fulfilled' ? shapInsightsResult.value : []
+      const shapInsights: ShapInsight[] = shapInsightsResult.status === 'fulfilled' ? shapInsightsResult.value : []
       if (shapInsightsResult.status === 'rejected') errors.push(shapInsightsResult.reason?.message || 'shapInsights')
 
       setState({

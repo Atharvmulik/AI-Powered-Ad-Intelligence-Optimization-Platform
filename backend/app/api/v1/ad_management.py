@@ -155,6 +155,10 @@ async def update_campaign(
 # 4. Network Health Score
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# 4. Network Health Score
+# ---------------------------------------------------------------------------
+
 @router.get(
     "/network-health",
     response_model=NetworkHealthResponse,
@@ -168,16 +172,65 @@ async def update_campaign(
 )
 async def get_network_health(
     service: AdManagementService = Depends(get_ad_management_service),
-) -> NetworkHealthResponse:
+):
     try:
-        return await service.get_network_health()
+        print("ROUTER START")
+
+        result = await service.get_network_health()
+
+        print("SERVICE RETURNED")
+        print(result)
+
+        print("ROUTER RETURNING")
+
+        return result
+
     except Exception as exc:
+        print("ROUTER EXCEPTION:", exc)
         logger.exception("Failed to compute network health")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not compute network health score.",
         ) from exc
 
+# ---------------------------------------------------------------------------
+# 5. AI Optimization Feed
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/network-health",
+    response_model=NetworkHealthResponse,
+    summary="Network Health Score",
+    description=(
+        "Returns the weighted Network Health Score: 50% CTR vs benchmark, "
+        "30% inverse fraud score, 20% ratio of active campaigns, plus a "
+        "human-readable label and narrative."
+    ),
+    status_code=status.HTTP_200_OK,
+)
+async def get_network_health(
+    service: AdManagementService = Depends(get_ad_management_service),
+):
+    try:
+        print("ROUTER START")
+
+        result = await service.get_network_health()
+
+        print("SERVICE RETURNED")
+        print(result)
+
+        print("ROUTER RETURNING")
+
+        return result
+
+    except Exception as exc:
+        print("ROUTER EXCEPTION:", exc)
+        logger.exception("Failed to compute network health")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not compute network health score.",
+        ) from exc
 
 # ---------------------------------------------------------------------------
 # 5. AI Optimization Feed
@@ -263,16 +316,32 @@ async def get_global_status(
         ) from exc
     
 
+# ---------------------------------------------------------------------------
+# 8. Delete Campaign
+# ---------------------------------------------------------------------------
+
 @router.delete(
     "/campaigns/{campaign_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete Campaign",
+    description=(
+        "Permanently deletes a campaign and its associated creatives."
+    ),
 )
 async def delete_campaign(
     campaign_id: int,
     service: AdManagementService = Depends(get_ad_management_service),
 ) -> None:
-    await service.delete_campaign(campaign_id=campaign_id)
+    try:
+        await service.delete_campaign(campaign_id=campaign_id)
+    except CampaignNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        logger.exception("Failed to delete campaign %d", campaign_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not delete campaign.",
+        ) from exc
 
 
 @router.post("/campaigns/upload-creative", status_code=200)

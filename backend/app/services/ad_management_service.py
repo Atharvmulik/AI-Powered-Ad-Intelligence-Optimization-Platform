@@ -20,12 +20,11 @@ Architecture notes
 """
 
 from __future__ import annotations
-
-from http.client import responses
 import logging
 import random
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
+from urllib import response
 
 from sqlalchemy import func, select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -583,23 +582,30 @@ class AdManagementService:
         """
         AdCampaign, AdCreative, FraudEvent = _models()
         db = self._db
-
+        print("STEP 1")
         cache_key = "ad_management:network_health"
         cached = await _cache_get(cache_key)
+        print("STEP 2")
         if cached:
             return NetworkHealthResponse.model_validate_json(cached)
 
         active_result = await db.execute(
             select(AdCampaign.campaign_id).where(AdCampaign.status == "ACTIVE")
         )
+        print("STEP 3")
         active_ids: List[int] = [row[0] for row in active_result.all()]
+        print(active_ids)
 
         total_result = await db.execute(select(func.count()).select_from(AdCampaign))
+        print("STEP 4")
         total_campaigns: int = total_result.scalar_one() or 0
+        print(total_campaigns)
 
         # --- CTR component (50%) ---
         if active_ids:
+            print("Computing CTR...")
             ctr_values = [await self._compute_ctr(cid) for cid in active_ids]
+            print(ctr_values)
             avg_ctr = sum(ctr_values) / len(ctr_values)
         else:
             avg_ctr = 0.0
@@ -607,7 +613,9 @@ class AdManagementService:
 
         # --- Fraud component (30%) ---
         fraud_avg_result = await db.execute(select(func.avg(FraudEvent.fraud_score)))
+        print("Computing fraud...")
         avg_fraud: float = float(fraud_avg_result.scalar_one() or 0.0)
+        print(avg_fraud)
         fraud_score_component = max(0.0, (1.0 - avg_fraud)) * 100
 
         # --- Active ratio component (20%) ---
@@ -633,7 +641,10 @@ class AdManagementService:
         )
 
         response = NetworkHealthResponse(score=weighted_score, label=label, narrative=narrative)
+        print("SERVICE ABOUT TO CACHE")
         await _cache_set(cache_key, response.model_dump_json(), ttl_seconds=30)
+        print("SERVICE ABOUT TO RETURN")
+        print(response)
         return response
 
     # ------------------------------------------------------------------
@@ -885,13 +896,45 @@ class AdManagementService:
         )
     
 
-async def delete_campaign(self, campaign_id: int) -> None:
-    AdCampaign, AdCreative, FraudEvent = _models()
-    result = await self._db.execute(
-        select(AdCampaign).where(AdCampaign.campaign_id == campaign_id)
-    )
-    campaign = result.scalar_one_or_none()
-    if campaign is None:
-        raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found.")
-    await self._db.delete(campaign)
-    await self._db.commit()
+# ------------------------------------------------------------------
+    # 9. Delete Campaign
+    # ------------------------------------------------------------------
+
+    async def delete_campaign(self, campaign_id: int) -> None:
+        """
+        Permanently delete a campaign and its associated creatives.
+
+        Parameters
+        ----------
+        campaign_id : int
+
+        Raises
+        ------
+        CampaignNotFoundError
+            If campaign_id does not exist.
+        """
+        AdCampaign, AdCreative, FraudEvent = _models()
+
+        result = await self._db.execute(
+            select(AdCampaign).where(AdCampaign.campaign_id == campaign_id)
+        )
+        campaign = result.scalar_one_or_none()
+        if campaign is None:
+            raise CampaignNotFoundError(f"Campaign {campaign_id} not found.")
+
+        # Remove associated creatives first since there's no ON DELETE
+        # CASCADE declared on the FK in db/models.py.
+        creative_result = await self._db.execute(
+            select(AdCreative).where(AdCreative.campaign_id == campaign_id)
+        )
+        creatives = creative_result.scalars().all()
+        for creative in creatives:
+            await self._db.delete(creative)
+
+        await self._db.delete(campaign)
+
+        try:
+            await self._db.commit()
+        except Exception:
+            await self._db.rollback()
+            raise

@@ -16,7 +16,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-
+from sqlalchemy.sql import func
 
 class Base(DeclarativeBase):
     pass
@@ -212,6 +212,142 @@ class AdCreative(Base):
 
     __table_args__ = (
         Index("ix_ad_creatives_campaign_status", "campaign_id", "status"),
+    )
+
+# ---------------------------------------------------------------------------
+# audience_segments
+# ---------------------------------------------------------------------------
+
+class AudienceSegment(Base):
+    __tablename__ = "audience_segments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        index=True,
+    )
+
+    subtitle: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    icon_name: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="group",
+    )
+
+    reach: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    growth_pct: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0.0,
+    )
+
+    device_mobile_pct: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0.0,
+    )
+
+    device_desktop_pct: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0.0,
+    )
+
+    device_tablet_pct: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0.0,
+    )
+
+    fraud_risk_level: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="Low",
+        index=True,
+    )
+
+    avg_ctr: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0.0,
+    )
+
+    tags: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        index=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# audience_segment_insights
+# ---------------------------------------------------------------------------
+
+class AudienceSegmentInsight(Base):
+    __tablename__ = "audience_segment_insights"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    segment_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("audience_segments.id"),
+        nullable=False,
+        index=True,
+    )
+
+    feature_name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    contribution_value: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_audience_insight_segment_feature",
+            "segment_id",
+            "feature_name",
+        ),
     )
 
 # ---------------------------------------------------------------------------

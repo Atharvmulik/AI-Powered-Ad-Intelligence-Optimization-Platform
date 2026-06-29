@@ -1,9 +1,13 @@
 // ─── helpers ──────────────────────────────────────────────────────────────────
 export const randBetween = (min, max) => Math.random() * (max - min) + min
 
-export const formatReach = (meta, val) => {
-  if (meta.reachUnit === 'M') return `${val.toFixed(2)}M`
-  return `${Math.round(val)}K`
+// CHANGED: was formatReach(meta, val) — relied on meta.reachUnit, which only
+// existed on mock SEGMENT_META. Real backend segments are a raw integer with
+// no unit hint, so this now auto-detects M vs K from magnitude.
+export const formatReach = (rawReach) => {
+  if (rawReach >= 1_000_000) return `${(rawReach / 1_000_000).toFixed(2)}M`
+  if (rawReach >= 1_000) return `${Math.round(rawReach / 1_000)}K`
+  return `${rawReach}`
 }
 
 export const fraudBadgeClass = (risk) =>

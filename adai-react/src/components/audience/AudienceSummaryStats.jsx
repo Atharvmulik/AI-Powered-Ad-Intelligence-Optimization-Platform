@@ -1,4 +1,13 @@
-export default function AudienceSummaryStats({ activeNow }) {
+import { formatReach } from '../../utils/audienceHelpers'
+
+export default function AudienceSummaryStats({ overview, loading, error }) {
+  if (error) {
+    return <p className="text-error text-sm">Failed to load audience overview.</p>
+  }
+
+  // Kept text-yellow-400 static — the original never demonstrated a
+  // value-dependent color for this card, only ever showed "Low-Medium" in
+  // yellow. Only the text content is now dynamic.
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {/* Total Addressable Reach */}
@@ -8,7 +17,9 @@ export default function AudienceSummaryStats({ activeNow }) {
         </div>
         <div className="min-w-0">
           <p className="text-on-surface-variant text-[10px] uppercase tracking-wider font-label-md">Total Addressable Reach</p>
-          <p className="font-bold text-sm text-on-surface">4.14M</p>
+          <p className="font-bold text-sm text-on-surface">
+            {loading || !overview ? '—' : formatReach(overview.total_addressable_reach)}
+          </p>
         </div>
       </div>
 
@@ -19,7 +30,9 @@ export default function AudienceSummaryStats({ activeNow }) {
         </div>
         <div className="min-w-0">
           <p className="text-on-surface-variant text-[10px] uppercase tracking-wider font-label-md">Avg Fraud Risk</p>
-          <p className="font-bold text-sm text-yellow-400">Low-Medium</p>
+          <p className="font-bold text-sm text-yellow-400">
+            {loading || !overview ? '—' : overview.avg_fraud_risk}
+          </p>
         </div>
       </div>
 
@@ -30,7 +43,9 @@ export default function AudienceSummaryStats({ activeNow }) {
         </div>
         <div className="min-w-0">
           <p className="text-on-surface-variant text-[10px] uppercase tracking-wider font-label-md">Live Active Now</p>
-          <p className="font-bold text-sm text-tertiary">{activeNow.toLocaleString('en-IN')}</p>
+          <p className="font-bold text-sm text-tertiary">
+            {loading || !overview ? '—' : overview.live_active_now.toLocaleString('en-IN')}
+          </p>
         </div>
       </div>
 
@@ -41,7 +56,11 @@ export default function AudienceSummaryStats({ activeNow }) {
         </div>
         <div className="min-w-0">
           <p className="text-on-surface-variant text-[10px] uppercase tracking-wider font-label-md">Top Performing Segment</p>
-          <p className="font-bold text-sm text-primary truncate">Tech Early Adopters (4.15% CTR)</p>
+          <p className="font-bold text-sm text-primary truncate">
+            {loading || !overview
+              ? '—'
+              : `${overview.top_performing_segment} (${overview.top_performing_segment_ctr.toFixed(2)}% CTR)`}
+          </p>
         </div>
       </div>
     </div>

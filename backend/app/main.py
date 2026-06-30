@@ -33,6 +33,9 @@ from app.websocket.ad_management_ws import ad_management_live_ws
 from app.websocket.system_health_ws import system_health_live_ws
 from app.api.v1.campaigns import router as campaigns_router
 from app.websocket.campaigns_ws import router as campaigns_ws_router
+from app.websocket.analytics_ws import router as analytics_ws_router
+from app.api.v1.analytics import router as analytics_router
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -124,6 +127,9 @@ def create_app() -> FastAPI:
     application.add_api_websocket_route("/ws/system-health/live", system_health_live_ws)
     application.include_router(campaigns_router, prefix="/api/v1")
     application.include_router(campaigns_ws_router)
+    application.include_router(analytics_ws_router)
+    application.include_router(analytics_router, prefix="/api/v1")
+
 
     # ── Global exception handler ─────────────────────────────────────────
     @application.exception_handler(Exception)

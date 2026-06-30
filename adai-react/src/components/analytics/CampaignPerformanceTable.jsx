@@ -1,32 +1,33 @@
 // src/components/analytics/CampaignPerformanceTable.jsx
 // Full-width sortable campaign performance table.
-// Owns sort state. Uses CAMPAIGNS from analyticsData.
 
-import { useState } from 'react'
-import { roasColor, statusColor } from '@/utils/analyticsHelpers'
-import { CAMPAIGNS } from '@/data/analyticsData'
+import { useState } from 'react';
+import { roasColor, statusColor } from '@/utils/analyticsHelpers';
+import { useAnalytics } from '@/hooks/useAnalytics';
 
 function SortIcon({ sortKey, activeKey, activeDir }) {
   if (sortKey !== activeKey)
-    return <span className="material-symbols-outlined text-[14px] opacity-30">unfold_more</span>
+    return <span className="material-symbols-outlined text-[14px] opacity-30">unfold_more</span>;
   return activeDir === 'asc'
     ? <span className="material-symbols-outlined text-[14px] text-primary">arrow_upward</span>
-    : <span className="material-symbols-outlined text-[14px] text-primary">arrow_downward</span>
+    : <span className="material-symbols-outlined text-[14px] text-primary">arrow_downward</span>;
 }
 
 export default function CampaignPerformanceTable() {
-  const [sortKey, setSortKey] = useState(null)
-  const [sortDir, setSortDir] = useState('desc')
+  const { campaignPerformance, loading, error } = useAnalytics();
+  const campaigns = campaignPerformance?.campaigns ?? [];
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState('desc');
 
   const handleSort = (key) => {
-    if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
-    else { setSortKey(key); setSortDir('desc') }
-  }
+    if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir('desc'); }
+  };
 
-  const sorted = [...CAMPAIGNS].sort((a, b) => {
-    if (!sortKey) return 0
-    return sortDir === 'asc' ? a[sortKey] - b[sortKey] : b[sortKey] - a[sortKey]
-  })
+  const sorted = [...campaigns].sort((a, b) => {
+    if (!sortKey) return 0;
+    return sortDir === 'asc' ? a[sortKey] - b[sortKey] : b[sortKey] - a[sortKey];
+  });
 
   return (
     <div className="bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden">
@@ -53,10 +54,10 @@ export default function CampaignPerformanceTable() {
               <th className="text-left px-5 py-3">Fraud Filtered</th>
               <th
                 className="text-left px-5 py-3 cursor-pointer hover:text-primary transition-colors select-none"
-                onClick={() => handleSort('ctr')}
+                onClick={() => handleSort('effective_ctr')}
               >
                 <span className="flex items-center gap-1">
-                  Effective CTR <SortIcon sortKey="ctr" activeKey={sortKey} activeDir={sortDir} />
+                  Effective CTR <SortIcon sortKey="effective_ctr" activeKey={sortKey} activeDir={sortDir} />
                 </span>
               </th>
               <th className="text-left px-5 py-3">Spend</th>
@@ -72,18 +73,39 @@ export default function CampaignPerformanceTable() {
             </tr>
           </thead>
           <tbody>
-            {sorted.map((c) => {
-              const fraudDelta = c.raw - c.filtered
+            {loading && (
+              <tr>
+                <td colSpan={8} className="px-5 py-8 text-center text-on-surface-variant text-xs">
+                  Loading campaigns...
+                </td>
+              </tr>
+            )}
+            {!loading && error && (
+              <tr>
+                <td colSpan={8} className="px-5 py-8 text-center text-error text-xs">
+                  {error}
+                </td>
+              </tr>
+            )}
+            {!loading && !error && sorted.length === 0 && (
+              <tr>
+                <td colSpan={8} className="px-5 py-8 text-center text-on-surface-variant text-xs">
+                  No campaign data available.
+                </td>
+              </tr>
+            )}
+            {!loading && !error && sorted.map((c) => {
+              const fraudDelta = c.raw_clicks - c.fraud_filtered;
               return (
-                <tr key={c.name} className="border-b border-outline-variant/20 hover:bg-surface-container-high/30 transition-colors">
-                  <td className="px-5 py-4 font-semibold text-on-surface">{c.name}</td>
+                <tr key={c.campaign_name} className="border-b border-outline-variant/20 hover:bg-surface-container-high/30 transition-colors">
+                  <td className="px-5 py-4 font-semibold text-on-surface">{c.campaign_name}</td>
                   <td className="px-5 py-4 text-on-surface-variant text-xs">{c.advertiser}</td>
-                  <td className="px-5 py-4 font-mono text-xs">{c.raw.toLocaleString('en-IN')}</td>
+                  <td className="px-5 py-4 font-mono text-xs">{c.raw_clicks.toLocaleString('en-IN')}</td>
                   <td className="px-5 py-4">
-                    <span className="font-mono text-xs text-on-surface">{c.filtered.toLocaleString('en-IN')}</span>
+                    <span className="font-mono text-xs text-on-surface">{c.fraud_filtered.toLocaleString('en-IN')}</span>
                     <span className="block text-[10px] text-red-400 font-mono">-{fraudDelta.toLocaleString('en-IN')}</span>
                   </td>
-                  <td className="px-5 py-4 font-mono font-bold text-primary text-xs">{c.ctr}%</td>
+                  <td className="px-5 py-4 font-mono font-bold text-primary text-xs">{c.effective_ctr}%</td>
                   <td className="px-5 py-4 font-mono text-xs text-on-surface-variant">{c.spend}</td>
                   <td className={`px-5 py-4 font-mono font-black text-sm ${roasColor(c.roas)}`}>{c.roas}x</td>
                   <td className="px-5 py-4">
@@ -92,11 +114,11 @@ export default function CampaignPerformanceTable() {
                     </span>
                   </td>
                 </tr>
-              )
+              );
             })}
           </tbody>
         </table>
       </div>
     </div>
-  )
+  );
 }

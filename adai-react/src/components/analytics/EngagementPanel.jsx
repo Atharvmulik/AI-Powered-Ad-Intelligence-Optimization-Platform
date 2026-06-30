@@ -1,25 +1,23 @@
 // src/components/analytics/EngagementPanel.jsx
-// Bento row 2 (4/12 cols) — Engagement card: session duration mini-chart,
-// scroll depth, hover ratio. Owns its own live update intervals.
+// Bento row 2 (4/12 cols) — Engagement metrics from backend.
 
-import { useState, useEffect } from 'react'
-import { rand, randInt } from '@/utils/analyticsHelpers'
+import { useAnalytics } from '@/hooks/useAnalytics';
+
+function formatDuration(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}m ${s}s`;
+}
 
 export default function EngagementPanel() {
-  const [scrollDepth, setScrollDepth] = useState(78)
-  const [hoverRatio, setHoverRatio]   = useState(14.2)
-  const sessionDuration = '3m 42s'
+  const { engagement, loading, error } = useAnalytics();
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      setScrollDepth(prev => Math.min(95, Math.max(65, prev + randInt(-2, 2))))
-      setHoverRatio(prev => {
-        const next = prev + parseFloat(rand(-1.5, 1.5).toFixed(1))
-        return Math.min(22, Math.max(8, next))
-      })
-    }, 8000)
-    return () => clearInterval(id)
-  }, [])
+  const {
+    average_session_duration,
+    bounce_rate,
+    returning_users,
+    engagement_score,
+  } = engagement;
 
   return (
     <div className="col-span-12 md:col-span-6 lg:col-span-4 bg-surface-container-low border border-outline-variant rounded-xl p-6 h-full flex flex-col">
@@ -29,12 +27,16 @@ export default function EngagementPanel() {
           <p className="text-xs text-on-surface-variant">Avg. Session Duration</p>
         </div>
         <div className="text-right">
-          <span className="text-[#ffb783] font-bold text-lg">+12.4%</span>
-          <p className="text-sm font-mono text-on-surface mt-1">{sessionDuration}</p>
+          <span className="text-[#ffb783] font-bold text-lg">
+            {loading ? '--' : `${engagement_score.toFixed(1)}`}
+          </span>
+          <p className="text-sm font-mono text-on-surface mt-1">
+            {loading ? '--' : formatDuration(average_session_duration)}
+          </p>
         </div>
       </div>
 
-      {/* Mini sparkline */}
+      {/* Mini sparkline — visual only */}
       <div className="h-32 flex items-center justify-center border-b border-outline-variant/30 mb-4">
         <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 40">
           <defs>
@@ -48,18 +50,24 @@ export default function EngagementPanel() {
         </svg>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mt-auto">
-        <div>
-          <p className="text-[10px] text-on-surface-variant uppercase">Scroll Depth</p>
-          <p className="text-lg font-bold">{scrollDepth}%</p>
-          <p className="text-[9px] text-emerald-400 mt-0.5">↑ +{randInt(1, 3)}% vs yesterday</p>
+      {!loading && !error && (
+        <div className="grid grid-cols-2 gap-4 mt-auto">
+          <div>
+            <p className="text-[10px] text-on-surface-variant uppercase">Bounce Rate</p>
+            <p className="text-lg font-bold">{bounce_rate.toFixed(1)}%</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-on-surface-variant uppercase">Returning Users</p>
+            <p className="text-lg font-bold">{returning_users.toLocaleString('en-IN')}</p>
+          </div>
         </div>
-        <div>
-          <p className="text-[10px] text-on-surface-variant uppercase">Hover Ratio</p>
-          <p className="text-lg font-bold">{hoverRatio.toFixed(1)}%</p>
-          <p className="text-[9px] text-emerald-400 mt-0.5">↑ +{randInt(0, 2)}.{randInt(0, 9)}% vs yesterday</p>
-        </div>
-      </div>
+      )}
+      {loading && (
+        <p className="text-xs text-on-surface-variant text-center mt-auto py-2">Loading...</p>
+      )}
+      {!loading && error && (
+        <p className="text-xs text-error text-center mt-auto py-2">{error}</p>
+      )}
     </div>
-  )
+  );
 }

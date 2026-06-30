@@ -1,10 +1,28 @@
 // src/components/analytics/LiveCTRPanel.jsx
 // Bento row 1 (left 8/12 cols) — Live CTR trend chart card.
-// Props: ctrPoints (array), currentCTR (number)
 
-import LiveCTRChart from './LiveCTRChart'
+import { useAnalytics } from '@/hooks/useAnalytics';
+import { useAnalyticsWebSocket } from '@/hooks/useAnalyticsWebSocket';
+import LiveCTRChart from './LiveCTRChart';
 
-export default function LiveCTRPanel({ ctrPoints, currentCTR }) {
+export default function LiveCTRPanel() {
+  const {
+    ctrTrend, setCtrTrend,
+    overview, setOverview,
+    terminalLogs, setTerminalLogs,
+    fraudMonitor, setFraudMonitor,
+    loading,
+  } = useAnalytics();
+
+  useAnalyticsWebSocket(setOverview, setTerminalLogs, setFraudMonitor, setCtrTrend);
+
+  const ctrPoints = (ctrTrend?.points ?? []).map((p) => ({
+    value: p.ctr,
+    time: p.timestamp,
+  }));
+
+  const currentCTR = ctrTrend.current_ctr;
+
   return (
     <div className="col-span-12 lg:col-span-8 bg-surface-container-low border border-outline-variant rounded-xl p-6 relative overflow-hidden">
       <div className="flex items-center justify-between mb-4">
@@ -20,7 +38,9 @@ export default function LiveCTRPanel({ ctrPoints, currentCTR }) {
           </p>
         </div>
         <div className="text-right">
-          <p className="text-3xl font-black text-primary leading-none">{currentCTR.toFixed(2)}%</p>
+          <p className="text-3xl font-black text-primary leading-none">
+            {loading ? '--' : `${currentCTR.toFixed(2)}%`}
+          </p>
           <p className="text-xs text-on-surface-variant mt-1">CTR</p>
         </div>
       </div>
@@ -34,13 +54,23 @@ export default function LiveCTRPanel({ ctrPoints, currentCTR }) {
           <svg width="20" height="8">
             <line x1="0" y1="4" x2="20" y2="4" stroke="#555577" strokeWidth="1.5" strokeDasharray="4 2" />
           </svg>
-          Target 2.5%
+          Target {ctrTrend.target_ctr.toFixed(1)}%
         </div>
       </div>
 
       <div className="h-52">
-        <LiveCTRChart dataPoints={ctrPoints} />
+        {!loading && ctrPoints.length > 1 && <LiveCTRChart dataPoints={ctrPoints} />}
+        {!loading && ctrPoints.length <= 1 && (
+          <div className="h-full flex items-center justify-center text-xs text-on-surface-variant">
+            Waiting for CTR data...
+          </div>
+        )}
+        {loading && (
+          <div className="h-full flex items-center justify-center text-xs text-on-surface-variant">
+            Loading...
+          </div>
+        )}
       </div>
     </div>
-  )
+  );
 }

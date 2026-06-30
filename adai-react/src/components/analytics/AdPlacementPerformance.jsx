@@ -1,10 +1,12 @@
 // src/components/analytics/AdPlacementPerformance.jsx
 // Full-width table — Ad Placement Performance powered by RL Agent.
-// Fully static/presentational.
 
-import { AD_PLACEMENTS, MAX_PLACEMENT_CTR } from '@/data/analyticsData'
+import { useAnalytics } from '@/hooks/useAnalytics';
 
 export default function AdPlacementPerformance() {
+  const { placementPerformance, loading, error } = useAnalytics();
+  const placements = placementPerformance?.placements ?? [];
+
   return (
     <div className="col-span-12 bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden">
       {/* Header */}
@@ -32,15 +34,36 @@ export default function AdPlacementPerformance() {
             </tr>
           </thead>
           <tbody>
-            {AD_PLACEMENTS.map((placement) => (
+            {loading && (
+              <tr>
+                <td colSpan={5} className="px-6 py-8 text-center text-on-surface-variant text-xs">
+                  Loading placement data...
+                </td>
+              </tr>
+            )}
+            {!loading && error && (
+              <tr>
+                <td colSpan={5} className="px-6 py-8 text-center text-error text-xs">
+                  {error}
+                </td>
+              </tr>
+            )}
+            {!loading && !error && placements.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-6 py-8 text-center text-on-surface-variant text-xs">
+                  No placement data available.
+                </td>
+              </tr>
+            )}
+            {!loading && !error && placements.map((placement) => (
               <tr
-                key={placement.name}
-                className={`border-b border-outline-variant/20 transition-colors hover:bg-surface-container-high/30 ${placement.isBest ? 'bg-primary/5' : ''}`}
+                key={placement.placement}
+                className={`border-b border-outline-variant/20 transition-colors hover:bg-surface-container-high/30 ${placement.is_best ? 'bg-primary/5' : ''}`}
               >
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-on-surface">{placement.name}</span>
-                    {placement.isBest && (
+                    <span className="font-semibold text-on-surface">{placement.placement}</span>
+                    {placement.is_best && (
                       <span className="text-[10px] px-2 py-0.5 bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 rounded-full flex items-center gap-1">
                         🏆 Best Performer
                       </span>
@@ -54,18 +77,18 @@ export default function AdPlacementPerformance() {
                   <span className="font-mono font-bold text-primary text-xs">{placement.ctr}%</span>
                 </td>
                 <td className="px-6 py-4 font-mono text-xs text-emerald-400 font-bold">
-                  ₹{(placement.revenue / 1000).toFixed(0)},{String(placement.revenue % 1000).padStart(3, '0')}
+                  ₹{placement.revenue.toLocaleString('en-IN')}
                 </td>
                 <td className="px-6 py-4 w-48">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 bg-surface-container-high h-2 rounded-full overflow-hidden">
                       <div
                         className="bg-gradient-to-r from-primary to-secondary h-full rounded-full"
-                        style={{ width: `${(placement.ctr / MAX_PLACEMENT_CTR) * 100}%` }}
+                        style={{ width: `${placement.performance_percentage}%` }}
                       />
                     </div>
                     <span className="text-[10px] text-on-surface-variant font-mono w-12">
-                      {((placement.ctr / MAX_PLACEMENT_CTR) * 100).toFixed(0)}%
+                      {placement.performance_percentage}%
                     </span>
                   </div>
                 </td>
@@ -83,5 +106,5 @@ export default function AdPlacementPerformance() {
         </p>
       </div>
     </div>
-  )
+  );
 }

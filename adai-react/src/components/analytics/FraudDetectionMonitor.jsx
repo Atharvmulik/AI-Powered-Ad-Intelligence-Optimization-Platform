@@ -1,23 +1,23 @@
 // src/components/analytics/FraudDetectionMonitor.jsx
-// Right panel of export+fraud row — live fraud detection table (top 4 rows)
-// with summary chips. Owns fraudLog state and generation interval.
+// Right panel of export+fraud row — live fraud detection table with summary chips.
 
-import { useState, useEffect } from 'react'
-import { fraudScoreBg, actionChip } from '@/utils/analyticsHelpers'
-import { genFraudEntry, INITIAL_FRAUD } from '@/data/analyticsData'
+import { useAnalytics } from '@/hooks/useAnalytics';
+import { useAnalyticsWebSocket } from '@/hooks/useAnalyticsWebSocket';
+import { fraudScoreBg, actionChip } from '@/utils/analyticsHelpers';
+
+function formatTimestamp(ts) {
+  try {
+    return new Date(ts).toLocaleTimeString('en-GB', { hour12: false });
+  } catch {
+    return ts;
+  }
+}
 
 export default function FraudDetectionMonitor() {
-  const [fraudLog, setFraudLog] = useState(INITIAL_FRAUD)
+  const { fraudMonitor, setFraudMonitor, overview, setOverview, terminalLogs, setTerminalLogs } = useAnalytics();
+  useAnalyticsWebSocket(setOverview, setTerminalLogs, setFraudMonitor);
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      setFraudLog(prev => {
-        const next = [genFraudEntry(), ...prev]
-        return next.length > 8 ? next.slice(0, 8) : next
-      })
-    }, 8000)
-    return () => clearInterval(id)
-  }, [])
+  const { blocked_today, flagged, clean, events } = fraudMonitor;
 
   return (
     <div className="col-span-12 lg:col-span-8 bg-surface-container-low border border-red-500/20 rounded-xl overflow-hidden">
@@ -44,24 +44,30 @@ export default function FraudDetectionMonitor() {
             <tr className="border-b border-outline-variant/30 text-[11px] uppercase text-on-surface-variant font-label-md">
               <th className="text-left px-5 py-3">Timestamp</th>
               <th className="text-left px-5 py-3">IP Address</th>
-              <th className="text-left px-5 py-3">Device ID</th>
               <th className="text-left px-5 py-3">Fraud Score</th>
               <th className="text-left px-5 py-3">Category</th>
               <th className="text-left px-5 py-3">Action</th>
+              <th className="text-left px-5 py-3">Severity</th>
             </tr>
           </thead>
           <tbody>
-            {fraudLog.slice(0, 4).map((row, i) => (
+            {events.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-5 py-8 text-center text-on-surface-variant text-xs">
+                  No fraud events detected.
+                </td>
+              </tr>
+            )}
+            {events.slice(0, 4).map((row, i) => (
               <tr
-                key={row.id}
+                key={`${row.timestamp}-${i}`}
                 className={`border-b border-outline-variant/20 transition-colors hover:bg-surface-container-high/30 ${i === 0 ? 'bg-red-500/5' : ''}`}
               >
-                <td className="px-5 py-3 font-mono text-xs text-on-surface-variant">{row.ts}</td>
-                <td className="px-5 py-3 font-mono text-xs text-on-surface">{row.ip}</td>
-                <td className="px-5 py-3 font-mono text-xs text-on-surface-variant">{row.device}</td>
+                <td className="px-5 py-3 font-mono text-xs text-on-surface-variant">{formatTimestamp(row.timestamp)}</td>
+                <td className="px-5 py-3 font-mono text-xs text-on-surface">{row.ip_address}</td>
                 <td className="px-5 py-3">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold font-mono ${fraudScoreBg(row.score)}`}>
-                    {row.score.toFixed(2)}
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold font-mono ${fraudScoreBg(row.fraud_score)}`}>
+                    {row.fraud_score.toFixed(2)}
                   </span>
                 </td>
                 <td className="px-5 py-3 text-xs font-medium text-on-surface">{row.category}</td>
@@ -70,6 +76,7 @@ export default function FraudDetectionMonitor() {
                     {row.action}
                   </span>
                 </td>
+                <td className="px-5 py-3 text-xs text-on-surface-variant">{row.severity}</td>
               </tr>
             ))}
           </tbody>
@@ -81,19 +88,19 @@ export default function FraudDetectionMonitor() {
         <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/20">
           <span className="material-symbols-outlined text-red-400 text-sm">block</span>
           <span className="text-xs font-bold text-red-400">Blocked Today:</span>
-          <span className="text-xs font-black text-on-surface">1,247</span>
+          <span className="text-xs font-black text-on-surface">{blocked_today.toLocaleString('en-IN')}</span>
         </div>
         <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
           <span className="material-symbols-outlined text-yellow-400 text-sm">flag</span>
           <span className="text-xs font-bold text-yellow-400">Flagged:</span>
-          <span className="text-xs font-black text-on-surface">389</span>
+          <span className="text-xs font-black text-on-surface">{flagged.toLocaleString('en-IN')}</span>
         </div>
         <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
           <span className="material-symbols-outlined text-emerald-400 text-sm">check_circle</span>
           <span className="text-xs font-bold text-emerald-400">Clean:</span>
-          <span className="text-xs font-black text-on-surface">98.2K</span>
+          <span className="text-xs font-black text-on-surface">{clean.toLocaleString('en-IN')}</span>
         </div>
       </div>
     </div>
-  )
+  );
 }

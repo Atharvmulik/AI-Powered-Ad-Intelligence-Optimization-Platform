@@ -1,14 +1,13 @@
 // src/components/analytics/ScheduleExportModal.jsx
 // Modal for scheduling weekly analytics exports via email.
-// Props: isOpen, onClose, onSubmit,
-//        email, onEmailChange, day, onDayChange, format, onFormatChange
+// Props: isOpen, onClose, email, onEmailChange, day, onDayChange, format, onFormatChange
 
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react';
+import { scheduleAnalyticsExport } from '@/services/analyticsService';
 
 export default function ScheduleExportModal({
   isOpen,
   onClose,
-  onSubmit,
   email,
   onEmailChange,
   day,
@@ -16,18 +15,33 @@ export default function ScheduleExportModal({
   format,
   onFormatChange,
 }) {
-  const modalRef = useRef(null)
+  const modalRef = useRef(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) return;
     const handleClickOutside = (e) => {
-      if (modalRef.current && !modalRef.current.contains(e.target)) onClose()
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isOpen, onClose])
+      if (modalRef.current && !modalRef.current.contains(e.target)) onClose();
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen, onClose]);
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
+
+  const handleSubmit = async () => {
+    setSubmitError(null);
+    setSubmitting(true);
+    try {
+      await scheduleAnalyticsExport({ email, day, format });
+      onClose();
+    } catch {
+      setSubmitError('Failed to schedule export. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
@@ -78,23 +92,29 @@ export default function ScheduleExportModal({
               ))}
             </div>
           </div>
+
+          {submitError && (
+            <p className="text-xs text-error">{submitError}</p>
+          )}
         </div>
 
         <div className="flex gap-3 mt-6">
           <button
-            onClick={onSubmit}
-            className="flex-1 bg-primary text-on-primary rounded-lg px-4 py-2 font-bold hover:brightness-110 transition-all"
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="flex-1 bg-primary text-on-primary rounded-lg px-4 py-2 font-bold hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Activate Schedule
+            {submitting ? 'Scheduling...' : 'Activate Schedule'}
           </button>
           <button
             onClick={onClose}
-            className="flex-1 bg-surface-container-high border border-outline-variant rounded-lg px-4 py-2 font-medium hover:bg-surface-bright transition-all"
+            disabled={submitting}
+            className="flex-1 bg-surface-container-high border border-outline-variant rounded-lg px-4 py-2 font-medium hover:bg-surface-bright transition-all disabled:opacity-50"
           >
             Cancel
           </button>
         </div>
       </div>
     </div>
-  )
+  );
 }

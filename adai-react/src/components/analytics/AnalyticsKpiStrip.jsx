@@ -1,23 +1,24 @@
 // src/components/analytics/AnalyticsKpiStrip.jsx
 // Four live KPI cards: Active Users, Events/sec, Avg Bid Latency, Fraud Rate.
-// Props: activeUsers, eventsPerSec, bidLatency, fraudRate,
-//        prevUsers, prevEvents, prevLatency, prevFraud
+
+import { useAnalytics } from '@/hooks/useAnalytics';
+import { useAnalyticsWebSocket } from '@/hooks/useAnalyticsWebSocket';
 
 function TrendBadge({ cur, prev, suffix = '' }) {
-  const up = cur >= prev
-  const delta = Math.abs(cur - prev)
-  const formatted = delta % 1 !== 0 ? delta.toFixed(1) : delta
+  const up = cur >= prev;
+  const delta = Math.abs(cur - prev);
+  const formatted = delta % 1 !== 0 ? delta.toFixed(1) : delta;
   return (
     <span className={`text-xs font-bold ${up ? 'text-emerald-400' : 'text-red-400'}`}>
       {up ? '▲' : '▼'} {formatted}{suffix}
     </span>
-  )
+  );
 }
 
 const KPI_CONFIG = [
   {
-    key: 'activeUsers',
-    prevKey: 'prevUsers',
+    key: 'active_users',
+    prevKey: 'previous_active_users',
     label: 'Active Users',
     icon: 'group',
     iconBg: 'bg-primary/15',
@@ -26,8 +27,8 @@ const KPI_CONFIG = [
     suffix: '',
   },
   {
-    key: 'eventsPerSec',
-    prevKey: 'prevEvents',
+    key: 'events_per_second',
+    prevKey: 'previous_events_per_second',
     label: 'Events / sec',
     icon: 'electric_bolt',
     iconBg: 'bg-blue-500/15',
@@ -36,8 +37,8 @@ const KPI_CONFIG = [
     suffix: '',
   },
   {
-    key: 'bidLatency',
-    prevKey: 'prevLatency',
+    key: 'avg_bid_latency',
+    prevKey: 'previous_avg_bid_latency',
     label: 'Avg Bid Latency',
     icon: 'timer',
     iconBg: 'bg-orange-500/15',
@@ -46,8 +47,8 @@ const KPI_CONFIG = [
     suffix: 'ms',
   },
   {
-    key: 'fraudRate',
-    prevKey: 'prevFraud',
+    key: 'fraud_rate',
+    prevKey: 'previous_fraud_rate',
     label: 'Fraud Rate',
     icon: 'security',
     iconBg: 'bg-red-500/15',
@@ -55,14 +56,11 @@ const KPI_CONFIG = [
     format: (v) => `${v.toFixed(1)}%`,
     suffix: '%',
   },
-]
+];
 
-export default function AnalyticsKpiStrip({
-  activeUsers, eventsPerSec, bidLatency, fraudRate,
-  prevUsers, prevEvents, prevLatency, prevFraud,
-}) {
-  const values = { activeUsers, eventsPerSec, bidLatency, fraudRate }
-  const prevValues = { prevUsers, prevEvents, prevLatency, prevFraud }
+export default function AnalyticsKpiStrip() {
+  const { overview, setOverview } = useAnalytics();
+  useAnalyticsWebSocket(setOverview);
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -76,12 +74,12 @@ export default function AnalyticsKpiStrip({
               {label}
             </p>
             <p className="text-2xl font-black text-on-surface leading-tight">
-              {format(values[key])}
+              {format(overview[key])}
             </p>
-            <TrendBadge cur={values[key]} prev={prevValues[prevKey]} suffix={suffix} />
+            <TrendBadge cur={overview[key]} prev={overview[prevKey]} suffix={suffix} />
           </div>
         </div>
       ))}
     </div>
-  )
+  );
 }

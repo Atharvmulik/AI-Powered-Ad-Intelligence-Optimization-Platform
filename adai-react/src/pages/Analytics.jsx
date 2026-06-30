@@ -1,9 +1,12 @@
 // src/pages/Analytics.jsx
-// Orchestrator — owns shared cross-component state (KPIs, CTR chart, toasts,
-// date range, modals, export checkboxes) and composes all analytics sub-components.
+// Orchestrator — composes all analytics sub-components, backed entirely by
+// useAnalytics() + useAnalyticsWebSocket().
 
-import { useState, useEffect } from 'react'
-import { rand, randInt, getDateRange, generateToastId } from '@/utils/analyticsHelpers'
+import { useState } from 'react'
+import { getDateRange, generateToastId } from '@/utils/analyticsHelpers'
+import { exportCSV, exportPDF, exportExcel, scheduleAnalyticsExport } from '@/services/analyticsService'
+import { useAnalytics } from '@/hooks/useAnalytics'
+import { useAnalyticsWebSocket } from '@/hooks/useAnalyticsWebSocket'
 
 // Layout / animation
 import AnalyticsAnimations      from '@/components/analytics/AnalyticsAnimations'
@@ -38,26 +41,15 @@ const INITIAL_EXPORT_SELECTIONS = {
 }
 
 export default function Analytics() {
-  // ── KPI state ──────────────────────────────────────────────────────────────
-  const [activeUsers,   setActiveUsers]   = useState(1240)
-  const [eventsPerSec,  setEventsPerSec]  = useState(14200)
-  const [bidLatency,    setBidLatency]    = useState(42)
-  const [fraudRate,     setFraudRate]     = useState(3.2)
+  const {
+    overview, setOverview,
+    ctrTrend, setCtrTrend,
+    terminalLogs, setTerminalLogs,
+    fraudMonitor, setFraudMonitor,
+    loading, error,
+  } = useAnalytics()
 
-  const [prevUsers,     setPrevUsers]     = useState(1240)
-  const [prevEvents,    setPrevEvents]    = useState(14200)
-  const [prevLatency,   setPrevLatency]   = useState(42)
-  const [prevFraud,     setPrevFraud]     = useState(3.2)
-
-  // ── CTR chart state ────────────────────────────────────────────────────────
-  const [ctrPoints, setCtrPoints] = useState(() => {
-    const now = Date.now()
-    return Array.from({ length: 20 }, (_, i) => ({
-      value: parseFloat(rand(1.8, 3.4).toFixed(2)),
-      time: now - (19 - i) * 5000,
-    }))
-  })
-  const [currentCTR, setCurrentCTR] = useState(2.84)
+  useAnalyticsWebSocket(setOverview, setTerminalLogs, setFraudMonitor, setCtrTrend)
 
   // ── Toast state ────────────────────────────────────────────────────────────
   const [toasts, setToasts] = useState([])
@@ -84,37 +76,6 @@ export default function Analytics() {
   // ── Export checkboxes ──────────────────────────────────────────────────────
   const [selectedExports, setSelectedExports] = useState(INITIAL_EXPORT_SELECTIONS)
 
-  // ── KPI live intervals ─────────────────────────────────────────────────────
-  useEffect(() => {
-    const u = setInterval(() => { setActiveUsers(prev  => { setPrevUsers(prev);    return prev + randInt(-5, 5) }) },     3000)
-    const e = setInterval(() => { setEventsPerSec(prev => { setPrevEvents(prev);   return prev + randInt(-200, 200) }) }, 2000)
-    const l = setInterval(() => { setBidLatency(prev   => { setPrevLatency(prev);  return Math.max(30, prev + randInt(-3, 3)) }) }, 4000)
-    const f = setInterval(() => { setFraudRate(prev    => { setPrevFraud(prev);    return parseFloat(Math.max(0, prev + rand(-0.1, 0.1)).toFixed(1)) }) }, 5000)
-    return () => { clearInterval(u); clearInterval(e); clearInterval(l); clearInterval(f) }
-  }, [])
-
-  // ── CTR chart interval ─────────────────────────────────────────────────────
-  useEffect(() => {
-    const id = setInterval(() => {
-      const v = parseFloat(rand(1.8, 3.4).toFixed(2))
-      setCurrentCTR(v)
-      setCtrPoints(prev => [...prev.slice(1), { value: v, time: Date.now() }])
-    }, 5000)
-    return () => clearInterval(id)
-  }, [])
-
-  // ── WebSocket simulation ───────────────────────────────────────────────────
-  useEffect(() => {
-    const id = setInterval(() => {
-      const v = parseFloat(rand(1.8, 3.4).toFixed(2))
-      setCurrentCTR(v)
-      setActiveUsers(prev  => prev + randInt(-5, 5))
-      setEventsPerSec(prev => prev + randInt(-200, 200))
-      setFraudRate(prev    => parseFloat(Math.max(0, prev + rand(-0.05, 0.05)).toFixed(1)))
-    }, 5000)
-    return () => clearInterval(id)
-  }, [])
-
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   const handleDatePresetSelect = (preset) => {
@@ -131,43 +92,45 @@ export default function Analytics() {
     setIsCompareOpen(false)
   }
 
-  const handleScheduleSubmit = () => {
+  const handleScheduleSubmit = async () => {
     if (!scheduleEmail.trim()) { addToast('error', 'Please enter an email address'); return }
-    addToast('success', `Weekly export scheduled! Reports will be sent to ${scheduleEmail} every ${scheduleDay} in ${scheduleFormat} format.`)
-    setIsScheduleOpen(false)
-    setScheduleEmail('')
+    try {
+      await scheduleAnalyticsExport({ email: scheduleEmail, day: scheduleDay, format: scheduleFormat })
+      addToast('success', `Weekly export scheduled! Reports will be sent to ${scheduleEmail} every ${scheduleDay} in ${scheduleFormat} format.`)
+      setIsScheduleOpen(false)
+      setScheduleEmail('')
+    } catch {
+      addToast('error', 'Failed to schedule export. Please try again.')
+    }
   }
 
-  const handleExportCSV = () => {
-    const rows = [
-      ['Campaign', 'Clicks', 'CTR', 'Spend', 'ROAS'],
-      ['Nike Air Max Summer',  '45821', '4.8%', '420000', '4.8x'],
-      ['ASUS ROG Laptop Deal', '31440', '3.9%', '280000', '3.1x'],
-      ['Groww Invest Now',     '18220', '3.2%', '150000', '2.4x'],
-      ['MuscleBlaze Whey',     '12005', '2.8%', '95000',  '6.2x'],
-      ['Noise ColorFit Pro',   '8440',  '2.1%', '75000',  '1.8x'],
-    ]
-    const csv  = rows.map(r => r.join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href     = url
-    a.download = `adai-analytics-export-${new Date().toISOString().split('T')[0]}.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    addToast('success', 'CSV exported successfully!')
+  const handleExportCSV = async () => {
+    try {
+      await exportCSV()
+      addToast('success', 'CSV exported successfully!')
+    } catch {
+      addToast('error', 'CSV export failed. Please try again.')
+    }
   }
 
-  const handleExportPDF = () => {
-    addToast('info', 'PDF export queued — ready in ~10 seconds')
-    setTimeout(() => addToast('success', `PDF ready! adai-report-${new Date().toISOString().split('T')[0]}.pdf downloaded`), 10000)
+  const handleExportPDF = async () => {
+    try {
+      addToast('info', 'PDF export in progress...')
+      await exportPDF()
+      addToast('success', 'PDF exported successfully!')
+    } catch {
+      addToast('error', 'PDF export failed. Please try again.')
+    }
   }
 
-  const handleExportExcel = () => {
-    addToast('info', 'Excel export queued — ready in ~10 seconds')
-    setTimeout(() => addToast('success', `Excel ready! adai-report-${new Date().toISOString().split('T')[0]}.xlsx downloaded`), 10000)
+  const handleExportExcel = async () => {
+    try {
+      addToast('info', 'Excel export in progress...')
+      await exportExcel()
+      addToast('success', 'Excel exported successfully!')
+    } catch {
+      addToast('error', 'Excel export failed. Please try again.')
+    }
   }
 
   const handleCopyLink = () => {
@@ -208,14 +171,15 @@ export default function Analytics() {
 
       {/* KPI strip */}
       <AnalyticsKpiStrip
-        activeUsers={activeUsers}   eventsPerSec={eventsPerSec}
-        bidLatency={bidLatency}     fraudRate={fraudRate}
-        prevUsers={prevUsers}       prevEvents={prevEvents}
-        prevLatency={prevLatency}   prevFraud={prevFraud}
+        activeUsers={overview.active_users}     eventsPerSec={overview.events_per_second}
+        bidLatency={overview.avg_bid_latency}    fraudRate={overview.fraud_rate}
+        prevUsers={overview.previous_active_users}      prevEvents={overview.previous_events_per_second}
+        prevLatency={overview.previous_avg_bid_latency} prevFraud={overview.previous_fraud_rate}
       />
 
       {/* Toolbar */}
       <AnalyticsToolbar
+        isConnected={!error}
         dateRangeDisplay={dateRangeDisplay}
         dateRangePreset={dateRangePreset}
         onDatePresetSelect={handleDatePresetSelect}
@@ -228,7 +192,10 @@ export default function Analytics() {
 
       {/* Bento row 1: CTR chart + Click Distribution */}
       <div className="grid grid-cols-12 gap-gutter items-stretch">
-        <LiveCTRPanel ctrPoints={ctrPoints} currentCTR={currentCTR} />
+        <LiveCTRPanel
+          ctrPoints={ctrTrend.points.map(p => ({ value: p.ctr, time: p.timestamp }))}
+          currentCTR={ctrTrend.current_ctr}
+        />
         <ClickDistribution />
       </div>
 

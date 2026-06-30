@@ -1,28 +1,29 @@
 // ============================================================
 // src/lib/api.ts
+// Axios instance used throughout the application.
 // ============================================================
 
 import axios from 'axios'
 
-console.log(
-  'API URL =',
-  (import.meta as any).env?.VITE_API_BASE_URL
-)
+const API_URL = import.meta.env.VITE_API_URL
+
+console.log('API URL =', API_URL)
 
 const api = axios.create({
-  baseURL: (import.meta as any).env?.VITE_API_BASE_URL as string | undefined,
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 })
 
 api.interceptors.response.use(
-  (response: any) => response,
-  (error: any) => {
+  (response) => response,
+  (error) => {
     const message =
-      error?.response?.data?.detail ||
-      error?.message ||
+      error?.response?.data?.detail ??
+      error?.message ??
       'An unexpected error occurred'
+
     return Promise.reject(new Error(message))
   }
 )

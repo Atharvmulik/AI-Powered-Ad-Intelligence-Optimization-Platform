@@ -1,14 +1,15 @@
 // src/components/analytics/AnalyticsToolbar.jsx
-// Toolbar row: description text, LIVE indicator, date range dropdown,
+// Toolbar row: description text, LIVE/OFFLINE indicator, date range dropdown,
 // Compare button, and Export dropdown.
-// Props: dateRangeDisplay, dateRangePreset, onDatePresetSelect,
+// Props: isConnected, dateRangeDisplay, dateRangePreset, onDatePresetSelect,
 //        onCompareOpen, onExportCSV, onExportPDF, onExportExcel, onCopyLink
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react';
 
-const DATE_PRESETS = ['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'This Quarter', 'Custom Range']
+const DATE_PRESETS = ['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'This Quarter', 'Custom Range'];
 
 export default function AnalyticsToolbar({
+  isConnected = false,
   dateRangeDisplay,
   dateRangePreset,
   onDatePresetSelect,
@@ -18,29 +19,33 @@ export default function AnalyticsToolbar({
   onExportExcel,
   onCopyLink,
 }) {
-  const [isDateOpen, setIsDateOpen] = useState(false)
-  const [isExportOpen, setIsExportOpen] = useState(false)
-  const dateRef = useRef(null)
-  const exportRef = useRef(null)
+  const [isDateOpen, setIsDateOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const dateRef = useRef(null);
+  const exportRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (dateRef.current && !dateRef.current.contains(e.target)) setIsDateOpen(false)
-      if (exportRef.current && !exportRef.current.contains(e.target)) setIsExportOpen(false)
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+      if (dateRef.current && !dateRef.current.contains(e.target)) setIsDateOpen(false);
+      if (exportRef.current && !exportRef.current.contains(e.target)) setIsExportOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleDateSelect = (preset) => {
-    setIsDateOpen(false)
-    onDatePresetSelect(preset)
-  }
+    setIsDateOpen(false);
+    onDatePresetSelect(preset);
+  };
 
   const handleExport = (fn) => {
-    setIsExportOpen(false)
-    fn()
-  }
+    setIsExportOpen(false);
+    fn();
+  };
+
+  const dotColor = isConnected ? 'bg-emerald-400' : 'bg-red-400';
+  const labelColor = isConnected ? 'text-emerald-400' : 'text-red-400';
+  const labelText = isConnected ? 'LIVE' : 'OFFLINE';
 
   return (
     <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -53,8 +58,8 @@ export default function AnalyticsToolbar({
       <div className="flex items-center gap-2">
         {/* Live WS indicator */}
         <div className="flex items-center gap-1.5 px-3 py-2 bg-surface-container-high rounded border border-outline-variant text-xs font-bold">
-          <span className="ws-dot inline-block w-2 h-2 rounded-full bg-emerald-400" />
-          <span className="text-emerald-400">LIVE</span>
+          <span className={`ws-dot inline-block w-2 h-2 rounded-full ${dotColor}`} />
+          <span className={labelColor}>{labelText}</span>
         </div>
 
         {/* Date range dropdown */}
@@ -118,5 +123,5 @@ export default function AnalyticsToolbar({
         </div>
       </div>
     </div>
-  )
+  );
 }

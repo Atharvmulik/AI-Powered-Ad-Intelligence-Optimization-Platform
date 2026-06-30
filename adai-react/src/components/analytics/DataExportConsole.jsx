@@ -3,14 +3,33 @@
 // and a button to open the Schedule Weekly Export modal.
 // Props: selectedExports, onCheckboxChange, onScheduleOpen
 
+import { exportCSV, exportPDF, exportExcel, scheduleExport } from '@/services/analyticsService';
+
 const EXPORT_OPTIONS = [
   'Campaign Performance Metrics',
   'Audience Demographic Data',
   'Fraud Detection Log (Detailed)',
   'AI Forecasting & Trends',
-]
+];
 
 export default function DataExportConsole({ selectedExports, onCheckboxChange, onScheduleOpen }) {
+  const handleExportCSV = async () => {
+    await exportCSV();
+  };
+
+  const handleExportPDF = async () => {
+    await exportPDF();
+  };
+
+  const handleExportExcel = async () => {
+    await exportExcel();
+  };
+
+  const handleSchedule = async () => {
+    await scheduleExport();
+    onScheduleOpen();
+  };
+
   return (
     <div className="col-span-12 lg:col-span-4 bg-surface-container-low border border-outline-variant rounded-xl p-6 flex flex-col">
       <h3 className="text-on-surface font-bold mb-6 text-title-lg">Data Export Console</h3>
@@ -34,11 +53,36 @@ export default function DataExportConsole({ selectedExports, onCheckboxChange, o
           </div>
         </div>
 
+        {/* Export actions */}
+        <div className="pt-4 border-t border-outline-variant/30 space-y-2">
+          <p className="text-xs text-on-surface-variant font-bold uppercase mb-3 font-mono">Export Now</p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleExportCSV}
+              className="flex-1 py-2 text-xs font-bold bg-surface-container-highest border border-outline-variant rounded hover:bg-surface-bright transition-all"
+            >
+              CSV
+            </button>
+            <button
+              onClick={handleExportPDF}
+              className="flex-1 py-2 text-xs font-bold bg-surface-container-highest border border-outline-variant rounded hover:bg-surface-bright transition-all"
+            >
+              PDF
+            </button>
+            <button
+              onClick={handleExportExcel}
+              className="flex-1 py-2 text-xs font-bold bg-surface-container-highest border border-outline-variant rounded hover:bg-surface-bright transition-all"
+            >
+              Excel
+            </button>
+          </div>
+        </div>
+
         {/* Schedule trigger */}
         <div className="pt-6 border-t border-outline-variant/30 mt-auto">
           <p className="text-xs text-on-surface-variant font-bold uppercase mb-4 font-mono">Automation</p>
           <button
-            onClick={onScheduleOpen}
+            onClick={handleSchedule}
             className="w-full py-3 bg-surface-container-highest rounded border border-outline-variant flex items-center justify-between px-4 hover:bg-surface-bright transition-all group"
           >
             <span className="flex items-center gap-2 text-sm font-medium">
@@ -52,5 +96,5 @@ export default function DataExportConsole({ selectedExports, onCheckboxChange, o
         </div>
       </div>
     </div>
-  )
+  );
 }

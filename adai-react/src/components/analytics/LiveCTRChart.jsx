@@ -1,27 +1,27 @@
 // src/components/analytics/LiveCTRChart.jsx
 // Custom SVG line chart — rolling CTR window with area fill, target line, grid.
-// Props: dataPoints — array of { value: number, time: timestamp }
+// Props: dataPoints — array of { value: number, time: string }
 
 export default function LiveCTRChart({ dataPoints }) {
-  const W   = 560
-  const H   = 200
-  const PAD = { top: 16, right: 20, bottom: 36, left: 44 }
-  const chartW = W - PAD.left - PAD.right
-  const chartH = H - PAD.top - PAD.bottom
+  const W   = 560;
+  const H   = 200;
+  const PAD = { top: 16, right: 20, bottom: 36, left: 44 };
+  const chartW = W - PAD.left - PAD.right;
+  const chartH = H - PAD.top - PAD.bottom;
 
-  const minY = 1.5
-  const maxY = 3.8
+  const minY = 1.5;
+  const maxY = 3.8;
 
-  const toX = (i) => PAD.left + (i / (dataPoints.length - 1)) * chartW
-  const toY = (v) => PAD.top + chartH - ((v - minY) / (maxY - minY)) * chartH
+  const toX = (i) => PAD.left + (i / Math.max(dataPoints.length - 1, 1)) * chartW;
+  const toY = (v) => PAD.top + chartH - ((v - minY) / (maxY - minY)) * chartH;
 
-  const pts      = dataPoints.map((pt, i) => `${toX(i)},${toY(pt.value)}`).join(' ')
-  const targetY  = toY(2.5)
-  const yTicks   = [1.8, 2.2, 2.5, 3.0, 3.4]
-  const xLabels  = dataPoints
+  const pts     = dataPoints.map((pt, i) => `${toX(i)},${toY(pt.value)}`).join(' ');
+  const targetY = toY(2.5);
+  const yTicks  = [1.8, 2.2, 2.5, 3.0, 3.4];
+  const xLabels = dataPoints
     .map((_, i) => i)
-    .filter((i) => i % 5 === 0 || i === dataPoints.length - 1)
-  const current  = dataPoints[dataPoints.length - 1]?.value || 0
+    .filter((i) => i % 5 === 0 || i === dataPoints.length - 1);
+  const current = dataPoints[dataPoints.length - 1]?.value || 0;
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
@@ -96,5 +96,5 @@ export default function LiveCTRChart({ dataPoints }) {
         stroke="#2a2a3a" strokeWidth="1"
       />
     </svg>
-  )
+  );
 }

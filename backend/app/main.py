@@ -24,11 +24,13 @@ from fastapi.responses import JSONResponse
 
 from app.db.session import engine
 from app.api.v1.dashboard import router as dashboard_router
+from app.api.v1.aiinsight import router as aiinsight_router
 from app.api.v1 import ad_management
 from app.api.v1 import audience
 from app.websocket.audience_ws import audience_live_ws
 from app.api.v1.system_health import router as system_health_router
 from app.websocket.dashboard_ws import dashboard_live_ws
+from app.websocket.aiinsight_ws import aiinsight_live_ws
 from app.websocket.ad_management_ws import ad_management_live_ws
 from app.websocket.system_health_ws import system_health_live_ws
 from app.api.v1.campaigns import router as campaigns_router
@@ -116,12 +118,14 @@ def create_app() -> FastAPI:
 
     # ── REST routers ────────────────────────────────────────────────────
     application.include_router(dashboard_router, prefix="/api/v1")
+    application.include_router(aiinsight_router, prefix="/api/v1")
     application.include_router(ad_management.router, prefix="/api/v1")
     application.include_router(audience.router, prefix="/api/v1")
     application.include_router(system_health_router, prefix="/api/v1")
 
     # ── WebSocket routes ────────────────────────────────────────────────
     application.add_api_websocket_route("/ws/dashboard/live", dashboard_live_ws)
+    application.add_api_websocket_route("/ws/aiinsight/live", aiinsight_live_ws)
     application.add_api_websocket_route("/ws/ad-management/analysis-log", ad_management_live_ws)  
     application.add_api_websocket_route("/ws/audience/live", audience_live_ws)
     application.add_api_websocket_route("/ws/system-health/live", system_health_live_ws)

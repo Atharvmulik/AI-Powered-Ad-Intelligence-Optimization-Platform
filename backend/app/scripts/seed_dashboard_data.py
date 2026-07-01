@@ -25,6 +25,7 @@ from app.db.models import (
     RecommendationLog,
     InfrastructureMetric,
     MLPredictionLog,
+    AdCreative,
 )
 
 # ---------------------------------------------------------------------------
@@ -186,7 +187,69 @@ async def seed_campaigns(session) -> list[dict]:
     result = await session.execute(select(AdCampaign.campaign_id))
     return [{"campaign_id": r.campaign_id} for r in result.all()]
 
+# ---------------------------------------------------------------------------
+# Seed: Ad Creatives
+# ---------------------------------------------------------------------------
 
+async def seed_ad_creatives(session, campaigns: list[dict]) -> None:
+
+    if not await table_is_empty(session, AdCreative):
+        log.info("⏭  ad_creatives — already populated, skipping.")
+        return
+
+    log.info("🌱  Seeding ad_creatives ...")
+
+    rows = []
+
+    ad_counter = 1
+
+    # 5 creatives for every campaign
+  
+
+# First 50 campaigns only
+    for campaign in campaigns[:50]:
+
+        rows.append({
+
+            "campaign_id": campaign["campaign_id"],
+
+            "format": random.choice([
+                "Banner",
+                "Video",
+                "Native",
+                "Carousel",
+                "Interstitial",
+            ]),
+
+            "category": random.choice([
+                "Sports",
+                "Technology",
+                "Fashion",
+                "Food",
+                "Travel",
+            ]),
+
+            "keywords": ",".join(
+                random.sample(INTERESTS, 2)
+            ),
+
+            "image_url": f"https://picsum.photos/600/400?random={campaign['campaign_id']}",
+
+            "status": "ACTIVE",
+
+        })
+
+        ad_counter += 1
+
+    await session.execute(
+        pg_insert(AdCreative)
+        .values(rows)
+        .on_conflict_do_nothing()
+    )
+
+    await session.commit()
+
+    log.info(f"✅ ad_creatives committed ({len(rows)} rows)")
 # ---------------------------------------------------------------------------
 # Seed: Click Events
 # ---------------------------------------------------------------------------
@@ -196,42 +259,82 @@ async def seed_click_events(
     users: list[dict],
     campaigns: list[dict],
 ) -> None:
+
     if not await table_is_empty(session, ClickEvent):
         log.info("⏭  click_events — already populated, skipping.")
         return
 
     log.info("🌱  Seeding 10 000 click events …")
-    ad_ids = [f"ad_{i:03d}" for i in range(1, 51)]
-    rows: list[dict] = []
 
-    for _ in range(10_000):
-        user     = random.choice(users)
-        campaign = random.choice(campaigns)
-        pred_ctr = round(
+    creative_result = await session.execute(
+        select(
+            AdCreative.ad_id,
+            AdCreative.campaign_id,
+        )
+    )
+
+    creative_map = {
+        f"ad_{row.ad_id:03d}": row.campaign_id
+        for row in creative_result
+    }
+
+    ad_ids = list(creative_map.keys())
+
+    rows = []
+
+    for _ in range(10000):
+
+        user = random.choice(users)
+
+        ad_id = random.choice(ad_ids)
+
+        campaign_id = creative_map[ad_id]
+
+        predicted_ctr = round(
             random.uniform(0.02, 0.15),
             4
         )
-        clicked  = random.random() < pred_ctr
+
+        clicked = random.random() < predicted_ctr
+
         rows.append({
-            "timestamp":      rand_ts(30),
-            "user_id":        user["user_id"],
-            "ad_id":          random.choice(ad_ids),
-            "campaign_id":    campaign["campaign_id"],
-            "clicked":        clicked,
-            "predicted_ctr":  pred_ctr,
+
+            "timestamp": rand_ts(30),
+
+            "user_id": user["user_id"],
+
+            "ad_id": ad_id,
+
+            "campaign_id": campaign_id,
+
+            "clicked": clicked,
+
+            "predicted_ctr": predicted_ctr,
+
             "actual_outcome": 1 if clicked else 0,
-            "location":       user["location"],
+
+            "location": user["location"],
+
         })
 
     BATCH = 500
-    total = -(-len(rows) // BATCH)
+
+    total_batches = -(-len(rows) // BATCH)
+
     for idx, batch in enumerate(chunk(rows, BATCH), 1):
-        await session.execute(pg_insert(ClickEvent).values(batch).on_conflict_do_nothing())
-        if idx % 5 == 0 or idx == total:
-            log.info(f"   click_events batch {idx}/{total}")
+
+        await session.execute(
+            pg_insert(ClickEvent)
+            .values(batch)
+            .on_conflict_do_nothing()
+        )
+
+        if idx % 5 == 0 or idx == total_batches:
+            log.info(f"   click_events batch {idx}/{total_batches}")
 
     await session.commit()
-    log.info("✅  click_events committed  (10 000 rows)")
+
+    log.info("✅ click_events committed (10 000 rows)")
 
 
 # ---------------------------------------------------------------------------
@@ -364,23 +467,39 @@ async def seed_ml_prediction_logs(
 
     log.info("🌱  Seeding 10 000 ml_prediction_logs …")
 
-    ad_ids = [f"ad_{i:03d}" for i in range(1, 51)]
+    creative_result = await session.execute(
+        select(
+            AdCreative.ad_id,
+            AdCreative.campaign_id,
+        )
+    )
+
+    creative_map = {
+        f"ad_{row.ad_id:03d}": row.campaign_id
+        for row in creative_result
+    }
+
+    ad_ids = list(creative_map.keys())
 
     rows = []
 
     for _ in range(10000):
 
         user = random.choice(users)
-        campaign = random.choice(campaigns)
+
+        ad_id = random.choice(ad_ids)
+
+        campaign_id = creative_map[ad_id]
 
         rows.append({
+
             "timestamp": rand_ts(30),
 
             "user_id": user["user_id"],
 
-            "ad_id": random.choice(ad_ids),
+            "ad_id": ad_id,
 
-            "campaign_id": campaign["campaign_id"],
+            "campaign_id": campaign_id,
 
             "click_probability": round(
                 random.uniform(0.02, 0.15),
@@ -405,6 +524,7 @@ async def seed_ml_prediction_logs(
                 random.uniform(5, 150),
                 2
             ),
+
         })
 
     BATCH = 500
@@ -427,7 +547,7 @@ async def seed_ml_prediction_logs(
     await session.commit()
 
     log.info(
-        "✅  ml_prediction_logs committed (10 000 rows)"
+        "✅ ml_prediction_logs committed (10 000 rows)"
     )
 
 # ---------------------------------------------------------------------------
@@ -442,6 +562,10 @@ async def main() -> None:
     async with AsyncSessionLocal() as session:
         users     = await seed_users(session)
         campaigns = await seed_campaigns(session)
+        await seed_ad_creatives(
+    session,
+    campaigns
+)
         await seed_click_events(session, users, campaigns)
         await seed_fraud_events(session, users)
         await seed_recommendation_logs(session, users)

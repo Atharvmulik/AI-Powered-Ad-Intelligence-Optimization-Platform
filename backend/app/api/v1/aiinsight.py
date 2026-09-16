@@ -204,10 +204,11 @@ async def get_recommendations(
 )
 async def get_audience_segments(
     top_features_limit: int = Query(default=3, ge=1, le=10, description="Max feature names per segment"),
+    limit: Optional[int] = Query(default=None, ge=1, description="Max audience segments to return"),
     service: AIInsightService = Depends(get_aiinsight_service),
 ) -> AudienceResponse:
     try:
-        return await service.get_audience_segments(top_features_limit=top_features_limit)
+        return await service.get_audience_segments(top_features_limit=top_features_limit, limit=limit)
     except Exception as exc:
         logger.exception("Failed to fetch audience segments")
         raise HTTPException(
@@ -231,10 +232,11 @@ async def get_audience_segments(
     status_code=status.HTTP_200_OK,
 )
 async def get_infrastructure(
+    limit: Optional[int] = Query(default=None, ge=1, description="Max infrastructure services to return"),
     service: AIInsightService = Depends(get_aiinsight_service),
 ) -> InfrastructureResponse:
     try:
-        return await service.get_infrastructure()
+        return await service.get_infrastructure(limit=limit)
     except Exception as exc:
         logger.exception("Failed to fetch infrastructure metrics")
         raise HTTPException(

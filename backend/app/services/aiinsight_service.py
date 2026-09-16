@@ -492,7 +492,11 @@ class AIInsightService:
     # 6. Audience Segments
     # ------------------------------------------------------------------
 
-    async def get_audience_segments(self, top_features_limit: int = 3) -> AudienceResponse:
+    async def get_audience_segments(
+        self,
+        top_features_limit: int = 3,
+        limit: Optional[int] = None,
+    ) -> AudienceResponse:
         """
         Return active audience segments joined with their top contributing
         features from audience_segment_insights.
@@ -501,6 +505,8 @@ class AIInsightService:
         ----------
         top_features_limit : int
             Max number of top contributing features to attach per segment.
+        limit : Optional[int]
+            Optional max number of audience segments to return.
 
         Returns
         -------
@@ -513,11 +519,15 @@ class AIInsightService:
         ) = _models()
         db = self._db
 
-        segments_result = await db.execute(
+        query = (
             select(AudienceSegment)
             .where(AudienceSegment.is_active == True)  # noqa: E712
             .order_by(desc(AudienceSegment.reach))
         )
+        if limit is not None:
+            query = query.limit(limit)
+
+        segments_result = await db.execute(query)
         segments = segments_result.scalars().all()
 
         if not segments:
@@ -561,9 +571,14 @@ class AIInsightService:
     # 7. Infrastructure
     # ------------------------------------------------------------------
 
-    async def get_infrastructure(self) -> InfrastructureResponse:
+    async def get_infrastructure(self, limit: Optional[int] = None) -> InfrastructureResponse:
         """
         Return the latest heartbeat status for every registered service.
+
+        Parameters
+        ----------
+        limit : Optional[int]
+            Optional max number of infrastructure services to return.
 
         Returns
         -------
@@ -585,7 +600,7 @@ class AIInsightService:
             .subquery()
         )
 
-        result = await db.execute(
+        query = (
             select(InfrastructureMetric)
             .join(
                 latest_sub,
@@ -594,6 +609,10 @@ class AIInsightService:
             )
             .order_by(InfrastructureMetric.service_name)
         )
+        if limit is not None:
+            query = query.limit(limit)
+
+        result = await db.execute(query)
         metrics = result.scalars().all()
 
         services = [

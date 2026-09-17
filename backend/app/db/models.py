@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, date
-from typing import Optional
+from typing import Optional, List
 
 from sqlalchemy import (
     Boolean,
@@ -11,17 +11,196 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    JSON,
     String,
     Text,
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy.sql import func
 
 class Base(DeclarativeBase):
     pass
 
 
+# ---------------------------------------------------------------------------
+# realtime_event_logs
+# ---------------------------------------------------------------------------
+
+class RealtimeEventLog(Base):
+    __tablename__ = "realtime_event_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    event_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        index=True,
+    )
+    # CLICK | FRAUD | PRED | SHAP
+
+    campaign_id: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        index=True,
+    )
+
+    ip_address: Mapped[Optional[str]] = mapped_column(
+        String(45),
+        nullable=True,
+        index=True,
+    )
+
+    shard: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+    )
+
+    offset: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
+    score: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+    )
+
+    line_text: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    payload: Mapped[Optional[dict]] = mapped_column(
+        JSON,
+        nullable=True,
+    )
+    # for FRAUD rows this carries {"reason", "ip_address", "fraud_score"} —
+    # replaces the old separate FraudBlockEvent table.
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+    __table_args__ = (
+        Index("ix_realtime_event_logs_type_created", "event_type", "created_at"),
+        Index("ix_realtime_event_logs_campaign_created", "campaign_id", "created_at"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# stream_metric_snapshots
+# ---------------------------------------------------------------------------
+
+class StreamMetricSnapshot(Base):
+    __tablename__ = "stream_metric_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+    events_per_second: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    total_events_today: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    kafka_latency_ms: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    clicks_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    fraud_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    preds_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    shap_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        Index("ix_stream_metric_snapshots_captured_at", "captured_at"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# cluster_nodes
+# ---------------------------------------------------------------------------
+
+class ClusterNode(Base):
+    __tablename__ = "cluster_nodes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    node_name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    region: Mapped[str] = mapped_column(String(50), nullable=False, default="US-EAST-1", index=True)
+    is_healthy: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+
+    last_heartbeat: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+    __table_args__ = (
+        Index("ix_cluster_nodes_region_healthy", "region", "is_healthy"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# system_patch_infos
+# ---------------------------------------------------------------------------
+
+class SystemPatchInfo(Base):
+    __tablename__ = "system_patch_infos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    version: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    deployed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+    __table_args__ = (
+        Index("ix_system_patch_infos_deployed_at", "deployed_at"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# stream_control_states
+# ---------------------------------------------------------------------------
+
+class StreamControlState(Base):
+    __tablename__ = "stream_control_states"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # singleton row — always id = 1
+
+    is_paused: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    paused_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    paused_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+    fraud_counter_reset_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    # non-destructive reset baseline — fraud counts are filtered to
+    # created_at >= this timestamp instead of deleting rows.
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
 # ---------------------------------------------------------------------------
 # users
 # ---------------------------------------------------------------------------
@@ -550,6 +729,12 @@ class InfrastructureMetric(Base):
         nullable=False,
         default=0.0,
     )
+
+    detail: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    # short badge annotation, e.g. "HIT RATE: 94%" for redis_cache
 
     heartbeat_timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -38,6 +38,9 @@ from app.websocket.campaigns_ws import router as campaigns_ws_router
 from app.websocket.analytics_ws import router as analytics_ws_router
 from app.api.v1.analytics import router as analytics_router
 
+from app.api.v1.realtime_events import router as realtime_events_router
+from app.websocket.realtime_events_ws import realtime_events_live_ws
+from app.services.event_simulator_service import simulator as realtime_events_simulator
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -76,8 +79,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # await kafka_producer.start()
     # logger.info("Kafka producer started.")
     # ────────────────────────────────────────────────────────────────────
+    realtime_events_simulator.start()
+    logger.info("Real-Time Events simulator started.")
 
     yield  # application is running
+
+    await realtime_events_simulator.stop()
+    logger.info("Real-Time Events simulator stopped.")
 
     # Shutdown
     logger.info("Shutting down …")
@@ -122,6 +130,7 @@ def create_app() -> FastAPI:
     application.include_router(ad_management.router, prefix="/api/v1")
     application.include_router(audience.router, prefix="/api/v1")
     application.include_router(system_health_router, prefix="/api/v1")
+    application.include_router(realtime_events_router, prefix="/api/v1")
 
     # ── WebSocket routes ────────────────────────────────────────────────
     application.add_api_websocket_route("/ws/dashboard/live", dashboard_live_ws)
@@ -129,6 +138,7 @@ def create_app() -> FastAPI:
     application.add_api_websocket_route("/ws/ad-management/analysis-log", ad_management_live_ws)  
     application.add_api_websocket_route("/ws/audience/live", audience_live_ws)
     application.add_api_websocket_route("/ws/system-health/live", system_health_live_ws)
+    application.add_api_websocket_route("/ws/realtime-events", realtime_events_live_ws)
     application.include_router(campaigns_router, prefix="/api/v1")
     application.include_router(campaigns_ws_router)
     application.include_router(analytics_ws_router)

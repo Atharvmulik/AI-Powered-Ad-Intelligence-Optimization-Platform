@@ -30,7 +30,7 @@ import joblib
 warnings.filterwarnings("ignore")
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
-SAMPLE_PATH    = "ml/data/sample_5m.csv"
+SAMPLE_PATH    = "ml/data/sample_10m.csv"
 OUTPUT_DIR     = "ml/data"
 ARTIFACTS_DIR  = "ml/save_model"
 RANDOM_SEED    = 42

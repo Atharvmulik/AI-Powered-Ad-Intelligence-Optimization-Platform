@@ -40,6 +40,7 @@ backend/ml/data/processed/
 *.csv
 
 # ── ML Models & Artifacts ─────────────────────────────────────────────────────
+backend/ml/save_model_5m_backup/
 backend/ml/saved_models/
 backend/ml/save_model/        # ← your actual folder name from today's work
 *.pkl

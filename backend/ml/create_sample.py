@@ -22,8 +22,8 @@ import time
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 RAW_DATA_PATH  = "ml/data/train.txt"
-SAMPLE_PATH    = "ml/data/sample_5m.csv"
-SAMPLE_SIZE    = 5_000_000
+SAMPLE_PATH    = "ml/data/sample_10m.csv"
+SAMPLE_SIZE    = 10_000_000
 CHUNK_SIZE     = 200_000
 RANDOM_SEED    = 42
 # ─────────────────────────────────────────────────────────────────────────────

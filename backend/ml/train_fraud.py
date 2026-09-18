@@ -37,7 +37,7 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y,
     test_size=0.2,
     random_state=42,
-    stratify=y        # keeps fraud ratio same in both splits
+    stratify=y       
 )
 
 print(f"Train: {X_train.shape[0]} rows")

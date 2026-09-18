@@ -8,15 +8,26 @@ from typing import Optional
 NORMAL_USER_PERCENTAGE = 0.80
 HIGH_INTENT_USER_PERCENTAGE = 0.15
 FRAUD_USER_PERCENTAGE = 0.05
+FRAUD_EVENT_THRESHOLD = 0.50
 
 EVENT_TYPES = (
-    "impression",
-    "scroll",
-    "hover",
-    "click",
-    "page_view",
     "session_start",
+    "view",
+    "impression",
+    "click",
+    "conversion",
     "session_end",
+)
+
+PROFILE_NAMES = (
+    "normal",
+    "highly_engaged",
+    "low_engagement",
+    "tech_focused",
+    "gaming_focused",
+    "sports_focused",
+    "shopping_focused",
+    "suspicious_high_frequency",
 )
 
 
@@ -33,6 +44,7 @@ class SimulationConfig:
     normal_percentage: float = NORMAL_USER_PERCENTAGE
     high_intent_percentage: float = HIGH_INTENT_USER_PERCENTAGE
     fraud_percentage: float = FRAUD_USER_PERCENTAGE
+    fraud_event_threshold: float = FRAUD_EVENT_THRESHOLD
 
     def __post_init__(self) -> None:
         if self.sessions < 1:
@@ -43,8 +55,10 @@ class SimulationConfig:
             raise ValueError("events_per_second must be greater than zero")
         if self.batch_size < 1 or self.max_events_in_memory < 1:
             raise ValueError("batch_size and max_events_in_memory must be positive")
-        total = self.normal_percentage + self.high_intent_percentage + self.fraud_percentage
-        if any(value < 0 for value in (self.normal_percentage, self.high_intent_percentage, self.fraud_percentage)):
+        if any(value < 0 for value in (self.normal_percentage, self.high_intent_percentage, self.fraud_percentage, self.fraud_event_threshold)):
             raise ValueError("traffic percentages cannot be negative")
-        if abs(total - 1.0) > 0.001:
-            raise ValueError("traffic percentages must add up to 1.0")
+        total = self.normal_percentage + self.high_intent_percentage + self.fraud_percentage
+        if total > 1.0 + 1e-9:
+            raise ValueError("normal_percentage + high_intent_percentage + fraud_percentage must not exceed 1.0")
+        if not 0.0 <= self.fraud_event_threshold <= 1.0:
+            raise ValueError("fraud_event_threshold must be between 0 and 1")

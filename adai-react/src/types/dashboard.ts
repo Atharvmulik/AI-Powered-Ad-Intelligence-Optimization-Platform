@@ -15,12 +15,14 @@ export type ExecutiveSummary = { insights: ExecutiveInsight[]; insight_text?: st
 export type CtrTrend = { ctr_values: number[]; timestamps: string[] }
 
 export type CampaignAnalytics = {
-  campaign_name: string
-  budget: number
-  spend: number
+  impressions: number
+  raw_clicks: number
+  legit_clicks: number
+  effective_ctr: number
+  conversions: number
+  conversion_rate: number
   revenue: number
-  ctr: number
-  status?: string
+  fraud_rate: number
 }
 
 export type TopAd = {
@@ -30,7 +32,9 @@ export type TopAd = {
   clicks: number
   ctr: number
   revenue: number
-  spend?: number
+  spend: number
+  roas: number
+  fraud_clicks: number
 }
 
 export type GeoTrafficCity = {

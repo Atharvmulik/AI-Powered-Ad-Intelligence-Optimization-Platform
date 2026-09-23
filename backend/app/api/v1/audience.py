@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -153,11 +153,11 @@ async def update_audience_segment(
 # 7. Delete Segment
 # ---------------------------------------------------------------------------
 
-@router.delete("/segments/{segment_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/segments/{segment_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 async def delete_audience_segment(
     segment_id: int,
     db: AsyncSession = Depends(get_db),
-) -> None:
+) -> Response:
     """Delete an audience segment and its associated SHAP insight rows."""
     service = AudienceService(db)
     deleted = await service.delete_segment(segment_id)
@@ -166,7 +166,7 @@ async def delete_audience_segment(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Audience segment {segment_id} not found",
         )
-    return None
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ---------------------------------------------------------------------------

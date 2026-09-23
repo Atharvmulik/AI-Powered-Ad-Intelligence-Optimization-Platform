@@ -1,21 +1,13 @@
-"""
-WebSocket module for the Dashboard live-update feed.
+"""WebSocket module for the Dashboard live-update feed.
 
-Endpoint : WS /ws/dashboard/live
+Endpoint: WS /ws/dashboard/live
 
-Pushes a DashboardLiveUpdate payload every 5 seconds to all connected clients.
-The ConnectionManager handles fan-out; each client gets its own push loop.
+Current architecture:
+- Synthetic generator writes to PostgreSQL.
+- DashboardService reads the latest aggregated metrics.
+- This WebSocket simply exposes those metrics to the connected dashboard clients.
 
-Architecture notes
-------------------
-* ConnectionManager is a singleton attached to the FastAPI lifespan.
-* Each WebSocket connection runs its own async push loop via asyncio.create_task.
-* Redis Pub/Sub ready: swap the _broadcast_snapshot() body for a Redis
-  subscriber that listens on a "dashboard:live" channel.
-* Kafka ready: replace the DB snapshot call in _compute_snapshot() with an
-  AIOKafka consumer reading from a "dashboard-events" topic.
-* All exceptions inside the push loop are caught so one bad client cannot
-  crash the manager.
+This module intentionally does not implement Kafka or Redis. Those are future integrations.
 """
 
 from __future__ import annotations
@@ -23,11 +15,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
 from typing import Dict, Set
 
-from fastapi import WebSocket, WebSocketDisconnect, status as ws_status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import WebSocket, WebSocketDisconnect
 
 from app.db.session import AsyncSessionLocal
 from app.schemas.dashboard import DashboardLiveUpdate
@@ -144,12 +134,11 @@ class ConnectionManager:
     # ------------------------------------------------------------------
 
     def start_push_loop(self, client_id: str) -> None:
-        """
-        Spawn an async push task for a single client.
+        """Spawn a single async push task for a client if one is not already active."""
+        existing = self._tasks.get(client_id)
+        if existing is not None and not existing.done():
+            return
 
-        The task pushes a fresh DashboardLiveUpdate every _PUSH_INTERVAL
-        seconds until the client disconnects or the task is cancelled.
-        """
         task = asyncio.create_task(
             self._push_loop(client_id),
             name=f"dashboard-push-{client_id}",
@@ -157,25 +146,19 @@ class ConnectionManager:
         self._tasks[client_id] = task
 
     async def _push_loop(self, client_id: str) -> None:
-        """
-        Internal coroutine: repeatedly fetch a live snapshot and push it.
-
-        Uses its own short-lived DB session so the WebSocket handler does
-        not hold a DB connection open for the lifetime of the connection.
-        """
+        """Repeatedly fetch and push a DB-backed live snapshot using the same metrics as the overview API."""
         while client_id in self._connections:
             try:
                 snapshot = await _fetch_live_snapshot()
                 payload = snapshot.model_dump()
                 success = await self.send_json(client_id, payload)
                 if not success:
-                    break  # client gone; task will be cancelled by disconnect()
+                    break
             except asyncio.CancelledError:
                 logger.debug("Push loop cancelled for client %s", client_id)
                 break
             except Exception as exc:
                 logger.exception("Push loop error for client %s: %s", client_id, exc)
-                # Don't crash — wait and retry on next tick
             await asyncio.sleep(_PUSH_INTERVAL)
 
 
@@ -188,17 +171,7 @@ manager = ConnectionManager()
 # ---------------------------------------------------------------------------
 
 async def _fetch_live_snapshot() -> DashboardLiveUpdate:
-    """
-    Open a fresh DB session, build a live snapshot, and close the session.
-
-    Redis-ready: replace the DB call with:
-        value = await redis_client.get("dashboard:live")
-        return DashboardLiveUpdate.model_validate_json(value)
-
-    Kafka-ready: replace with an AIOKafka consumer reading from:
-        topic = "dashboard-events"
-    and fold incoming events into the snapshot.
-    """
+    """Open a fresh DB session and fetch the current dashboard snapshot from DashboardService."""
     async with AsyncSessionLocal() as session:
         service = DashboardService(db=session)
         return await service.get_live_snapshot()

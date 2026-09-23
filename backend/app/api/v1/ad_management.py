@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging, uuid, os
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -323,6 +323,7 @@ async def get_global_status(
 @router.delete(
     "/campaigns/{campaign_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
     summary="Delete Campaign",
     description=(
         "Permanently deletes a campaign and its associated creatives."
@@ -331,9 +332,10 @@ async def get_global_status(
 async def delete_campaign(
     campaign_id: int,
     service: AdManagementService = Depends(get_ad_management_service),
-) -> None:
+) -> Response:
     try:
         await service.delete_campaign(campaign_id=campaign_id)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except CampaignNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:

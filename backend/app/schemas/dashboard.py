@@ -1,8 +1,8 @@
-"""
-Pydantic schemas for the Dashboard module.
+"""Pydantic schemas for the Dashboard module.
 
-All response models are fully typed and validated.
-Designed for future Redis caching and Kafka stream integration.
+All response models are fully typed and validated for the current PostgreSQL-backed
+synthetic-data dashboard flow. The schemas represent the API and WebSocket contract
+currently consumed by the dashboard frontend.
 """
 
 from __future__ import annotations
@@ -22,12 +22,12 @@ class OverviewResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    total_clicks: int = Field(..., description="Total click events recorded", ge=0)
-    ctr: float = Field(..., description="Click-through rate as a percentage (0–100)", ge=0.0, le=100.0)
-    active_users: int = Field(..., description="Users active in the last 15 minutes", ge=0)
-    fraud_score: float = Field(..., description="Average fraud score scaled to 0–100", ge=0.0, le=100.0)
-    revenue: float = Field(..., description="Total campaign revenue in USD", ge=0.0)
-    events_per_second: float = Field(..., description="Real-time event ingestion rate", ge=0.0)
+    total_clicks: int = Field(..., description="Total click events recorded in ClickEvent rows", ge=0)
+    ctr: float = Field(..., description="Click-through rate = clicks / impressions x 100 (%), 0–100", ge=0.0, le=100.0)
+    active_users: int = Field(..., description="Distinct users with event activity in the last 15 minutes", ge=0)
+    fraud_score: float = Field(..., description="Average FraudEvent.fraud_score scaled to 0–100", ge=0.0, le=100.0)
+    revenue: float = Field(..., description="Campaign revenue sum from AdCampaign.revenue", ge=0.0)
+    events_per_second: float = Field(..., description="Synthetic event throughput over the last 60 seconds / 60", ge=0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -69,15 +69,18 @@ class CTRTrendResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class CampaignAnalyticsResponse(BaseModel):
-    """Aggregated campaign performance after fraud filtering."""
+    """Campaign analytics for the most recent event window."""
 
     model_config = ConfigDict(from_attributes=True)
 
+    impressions: int = Field(..., ge=0)
     raw_clicks: int = Field(..., ge=0)
-    fraud_filtered_clicks: int = Field(..., ge=0)
+    legit_clicks: int = Field(..., ge=0)
     effective_ctr: float = Field(..., ge=0.0, le=100.0)
-    conversions: int = Field(..., ge=0)
+    conversions: Optional[int] = Field(None, ge=0)
+    conversion_rate: Optional[float] = Field(None, ge=0.0, le=100.0)
     revenue: float = Field(..., ge=0.0)
+    fraud_rate: float = Field(..., ge=0.0, le=100.0)
 
 
 # ---------------------------------------------------------------------------
@@ -89,8 +92,10 @@ class TopAdResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    campaign_id: int = Field(..., ge=0, description="Existing AdCampaign primary key")
     campaign_name: str
-    ctr: float = Field(..., ge=0.0, le=100.0)
+    impressions: int = Field(..., ge=0)
+    ctr: float = Field(..., ge=0.0)
     clicks: int = Field(..., ge=0)
     revenue: float = Field(..., ge=0.0)
     spend: float = Field(..., ge=0.0)
@@ -189,6 +194,8 @@ class AIRecommendationResponse(BaseModel):
 
 class DashboardLiveUpdate(BaseModel):
     """Payload pushed over WebSocket every 5 seconds."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     events_per_second: float = Field(..., ge=0.0)
     active_users: int = Field(..., ge=0)

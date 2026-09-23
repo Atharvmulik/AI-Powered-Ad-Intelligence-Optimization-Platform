@@ -1,21 +1,36 @@
 import asyncio
-from sqlalchemy.ext.asyncio import create_async_engine
-from dotenv import load_dotenv
 import os
-import ssl
+
+import asyncpg
+from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
 
 async def main():
-    engine = create_async_engine(
-        DATABASE_URL,
-        connect_args={"ssl": ssl.create_default_context()}
+    database_url = os.getenv("DATABASE_URL")
+
+    print("DATABASE_URL exists:", bool(database_url))
+
+    if not database_url:
+        raise RuntimeError("DATABASE_URL is missing")
+
+    safe_url = database_url.split("@")[-1]
+    print("Database host:", safe_url)
+
+    asyncpg_url = database_url.replace(
+        "postgresql+asyncpg://",
+        "postgresql://",
+        1
     )
 
-    async with engine.begin() as conn:
-        result = await conn.exec_driver_sql("SELECT 1")
-        print(result.scalar())
+    conn = await asyncpg.connect(asyncpg_url)
+
+    result = await conn.fetchval("SELECT 1")
+
+    print("PostgreSQL test result:", result)
+
+    await conn.close()
+
 
 asyncio.run(main())

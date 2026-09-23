@@ -66,9 +66,9 @@ async def get_dashboard_service(
     response_model=OverviewResponse,
     summary="KPI Overview",
     description=(
-        "Returns top-level KPI metrics: total clicks, CTR, active users "
-        "(last 15 min), average fraud score, total revenue, and current "
-        "events-per-second ingestion rate."
+        "Returns live PostgreSQL-derived KPI metrics from the synthetic traffic stream: "
+        "total events, impressions, clicks, conversions, CTR, active users, average fraud score, "
+        "revenue, and current events-per-second ingestion rate."
     ),
     status_code=status.HTTP_200_OK,
 )
@@ -258,10 +258,9 @@ async def get_fraud_alerts(
     response_model=SHAPExplanationResponse,
     summary="SHAP Feature Explanations",
     description=(
-        "Returns SHAP feature attributions for the specified campaign.  "
-        "This endpoint is ML-service–ready: the service layer currently "
-        "returns typed placeholder data that will be replaced with real "
-        "SHAP values once the ML pipeline integration is complete."
+        "Returns actual SHAP feature attributions for the specified campaign when persisted "
+        "in the project’s shap_insights table; if no SHAP rows are available, the response uses "
+        "an empty/zero-safe feature list instead of placeholder values."
     ),
     status_code=status.HTTP_200_OK,
 )
@@ -291,8 +290,8 @@ async def get_campaign_explanations(
     response_model=List[SystemHealthResponse],
     summary="Infrastructure Health",
     description=(
-        "Returns the latest heartbeat record for every registered service "
-        "(Kafka, Redis, ML services, PostgreSQL, etc.)."
+        "Returns the latest heartbeat record for each registered infrastructure service "
+        "from PostgreSQL, without assuming Kafka or Redis are active when they are not integrated."
     ),
     status_code=status.HTTP_200_OK,
 )

@@ -2,6 +2,7 @@
 
 export type KpiOverview = {
   total_clicks: number
+  clicks_per_second: number
   ctr: number
   active_users: number
   events_per_second: number

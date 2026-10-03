@@ -64,6 +64,9 @@ export default function Dashboard() {
   }
 
   const kpi = overview ?? null
+  const clicksPerSecond = Number.isFinite(kpi?.clicks_per_second)
+    ? Number(kpi.clicks_per_second.toFixed(0))
+    : 0
 
   return (
     <div className="space-y-stack-lg max-w-full overflow-hidden">
@@ -73,8 +76,8 @@ export default function Dashboard() {
       ====================================================== */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-stack-lg">
         <KpiCard
-          label="Total Clicks"
-          value={formatNumber(kpi?.total_clicks ?? 0)}
+          label="Clicks / Sec"
+          value={formatNumber(clicksPerSecond)}
         />
 
         <KpiCard

@@ -17,8 +17,13 @@ import {
 /**
  * Pure helper functions for the Real-Time Events page: event tallying,
  * chart geometry, status derivation, simulated log generation, and
- * file export. No React state or side effects beyond the two export
- * functions, which trigger a browser download.
+ * file export.
+ *
+ * FIXES vs. previous version:
+ * - exportLogsAsCsv now quotes every CSV field to handle commas in
+ *   log.msg (e.g. "MODEL_HIT | p_conv: 0.414 | recommended_bid: $0.87")
+ * - generateLatencyPath uses consistent `M` + `L` prefix on every point
+ *   for clarity; single-point guard avoids NaN when history has 1 entry
  */
 
 // ---------------------------------------------------------------------------
@@ -56,6 +61,10 @@ export function getBarHeight(count, maxCount) {
 
 /**
  * Build the SVG line + area path data for the latency sparkline.
+ *
+ * FIX: guard against latencyHistory.length === 1 (avoids 0/0 = NaN for x).
+ * FIX: consistent path syntax — every segment uses explicit M / L commands.
+ *
  * @param {number[]} latencyHistory
  * @param {number} [minLatency]
  * @param {number} [maxLatency]
@@ -70,14 +79,22 @@ export function generateLatencyPath(
     return { linePath: '', areaPath: '' };
   }
 
+  // With only one point, draw a flat horizontal line
+  const divisor = latencyHistory.length > 1 ? latencyHistory.length - 1 : 1;
+
   const points = latencyHistory.map((value, index) => {
-    const x = (index / (latencyHistory.length - 1)) * 400;
-    const y = 80 - ((value - minLatency) / (maxLatency - minLatency)) * 60;
-    return `${x},${y}`;
+    const x = (index / divisor) * 400;
+    const clampedValue = Math.min(Math.max(value, minLatency), maxLatency);
+    const y = 80 - ((clampedValue - minLatency) / (maxLatency - minLatency)) * 60;
+    return { x, y };
   });
 
-  const linePath = `M ${points.join(' L ')}`;
-  const areaPath = `${linePath} V 100 H 0 Z`;
+  const linePath = points
+    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)},${p.y.toFixed(2)}`)
+    .join(' ');
+
+  const areaPath = `${linePath} L ${points[points.length - 1].x.toFixed(2)},100 L 0,100 Z`;
+
   return { linePath, areaPath };
 }
 
@@ -131,7 +148,6 @@ export function getKafkaStatus(eventsPerSec) {
 
 /**
  * Fill in a message pattern's `{}` placeholders based on the event's label.
- * Mirrors the original inline replacement logic exactly.
  * @param {{label: string, pattern: string}} eventConfig
  * @returns {string} the fully rendered message
  */
@@ -171,9 +187,8 @@ export function getCurrentTimeString() {
 }
 
 /**
- * Pick which event type the next simulated log line should be, weighting
- * SHAP at SHAP_EVENT_PROBABILITY and splitting the remainder evenly across
- * the other three types. Mirrors the original inline selection logic.
+ * Pick which event type the next simulated log line should be.
+ * SHAP appears at SHAP_EVENT_PROBABILITY; the other three share the remainder.
  * @param {Array} eventTypes
  * @returns {object} the chosen EventTypeConfig
  */
@@ -185,8 +200,7 @@ export function pickRandomEventType(eventTypes = EVENT_TYPES) {
 }
 
 /**
- * Generate one fully-formed simulated log entry, ready to append to the
- * terminal's log buffer.
+ * Generate one fully-formed simulated log entry.
  * @param {Array} [eventTypes]
  * @returns {{time: string, label: string, msg: string, color: string, msgColor: string}}
  */
@@ -194,22 +208,15 @@ export function createSimulatedLogEntry(eventTypes = EVENT_TYPES) {
   const event = pickRandomEventType(eventTypes);
   const msg = buildLogMessage(event);
   const time = getCurrentTimeString();
-
-  return {
-    time,
-    label: event.label,
-    msg,
-    color: event.color,
-    msgColor: event.msgColor,
-  };
+  return { time, label: event.label, msg, color: event.color, msgColor: event.msgColor };
 }
 
 // ---------------------------------------------------------------------------
-// Export logs (client-side file download — not a REST call)
+// Export logs (client-side file download)
 // ---------------------------------------------------------------------------
 
 /**
- * Trigger a browser download of a Blob with the given filename.
+ * Trigger a browser download of a Blob.
  * @param {Blob} blob
  * @param {string} filename
  */
@@ -233,15 +240,25 @@ export function exportLogsAsJson(logs) {
 
 /**
  * Download the current log buffer as a CSV file.
+ *
+ * FIX: every field is now double-quoted and internal double-quotes are
+ * escaped as "" — this handles commas inside log.msg correctly.
+ * Example msg: "MODEL_HIT | p_conv: 0.414 | recommended_bid: $0.87"
+ * would previously split into extra CSV columns; now it won't.
+ *
  * @param {Array} logs
  */
 export function exportLogsAsCsv(logs) {
+  const quoteField = (value) => `"${String(value).replace(/"/g, '""')}"`;
+
   const csvRows = [
-    ['timestamp', 'event_type', 'message'],
-    ...logs.map((log) => [log.time, log.label, log.msg]),
+    ['timestamp', 'event_type', 'message'].map(quoteField).join(','),
+    ...logs.map((log) =>
+      [log.time, log.label, log.msg].map(quoteField).join(',')
+    ),
   ];
-  const csvContent = csvRows.map((row) => row.join(',')).join('\n');
-  const blob = new Blob([csvContent], { type: 'text/csv' });
+
+  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
   triggerDownload(blob, `${EXPORT_FILENAME_PREFIX}_${Date.now()}.csv`);
 }
 

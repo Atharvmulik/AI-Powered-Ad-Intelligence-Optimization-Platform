@@ -28,6 +28,7 @@ class OverviewResponse(BaseModel):
     fraud_score: float = Field(..., description="Average FraudEvent.fraud_score scaled to 0–100", ge=0.0, le=100.0)
     revenue: float = Field(..., description="Campaign revenue sum from AdCampaign.revenue", ge=0.0)
     events_per_second: float = Field(..., description="Synthetic event throughput over the last 60 seconds / 60", ge=0.0)
+    clicks_per_second: float = Field(..., description="Actual clicks over the last 60 seconds / 60", ge=0.0)
 
 
 # ---------------------------------------------------------------------------

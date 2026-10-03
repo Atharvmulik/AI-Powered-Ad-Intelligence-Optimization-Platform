@@ -262,12 +262,18 @@ class DashboardService:
         revenue = float(revenue_row.scalar_one() or 0.0)
 
         recent_events_row = await self._db.execute(
-            select(func.count())
+            select(
+                func.count().label("events"),
+                func.sum(case((ClickEvent.clicked.is_(True), 1), else_=0)).label("clicks"),
+            )
             .select_from(ClickEvent)
             .where(ClickEvent.timestamp >= one_minute_ago)
         )
-        recent_events = int(recent_events_row.scalar_one() or 0)
+        recent_metrics = recent_events_row.one()
+        recent_events = int(recent_metrics.events or 0)
+        recent_clicks = int(recent_metrics.clicks or 0)
         events_per_second = round(recent_events / 60.0, 2)
+        clicks_per_second = round(recent_clicks / 60.0, 2)
 
         return {
             "total_events": total_events,
@@ -279,6 +285,7 @@ class DashboardService:
             "fraud_score": fraud_score,
             "revenue": revenue,
             "events_per_second": events_per_second,
+            "clicks_per_second": clicks_per_second,
         }
 
     async def get_overview(self) -> OverviewResponse:
@@ -291,6 +298,7 @@ class DashboardService:
             fraud_score=metrics["fraud_score"],
             revenue=metrics["revenue"],
             events_per_second=metrics["events_per_second"],
+            clicks_per_second=metrics["clicks_per_second"],
         )
 
     async def get_executive_summary(self) -> ExecutiveSummaryResponse:
@@ -757,7 +765,7 @@ class DashboardService:
         shap_rows = (await self._db.execute(
             select(ShapInsight.feature_name, ShapInsight.shap_value)
             .where(ShapInsight.campaign_id == campaign_id)
-            .order_by(desc(abs(ShapInsight.shap_value)))
+            .order_by(desc(func.abs(ShapInsight.shap_value)))
             .limit(10)
         )).all()
 

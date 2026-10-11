@@ -25,12 +25,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.schemas.dashboard import (
+    AIAdDecisionResponse,
     AIRecommendationResponse,
     CampaignAnalyticsResponse,
+    CampaignOpportunityRadarResponse,
     CTRTrendResponse,
     ExecutiveSummaryResponse,
     FraudAlertResponse,
     GeographicTrafficResponse,
+    ModelIntelligenceResponse,
     OverviewResponse,
     SHAPExplanationResponse,
     SystemHealthResponse,
@@ -333,4 +336,85 @@ async def get_ai_recommendations(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not generate AI recommendations.",
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# 11. AI Ad Decision Center
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/ai-ad-decision",
+    response_model=AIAdDecisionResponse,
+    summary="AI Ad Decision Center",
+    description=(
+        "Returns a deterministic decision summary for the strongest recent campaign signal, "
+        "combining live CTR, conversion, fraud, budget, and ROAS data from PostgreSQL."
+    ),
+    status_code=status.HTTP_200_OK,
+)
+async def get_ai_ad_decision(
+    service: DashboardService = Depends(get_dashboard_service),
+) -> AIAdDecisionResponse:
+    try:
+        return await service.get_ai_ad_decision()
+    except Exception as exc:
+        logger.exception("Failed to compute AI ad decision")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not compute ad decision.",
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# 12. Model Intelligence
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/model-intelligence",
+    response_model=ModelIntelligenceResponse,
+    summary="Live Model Intelligence",
+    description=(
+        "Returns recent health and activity summaries for the CTR model, fraud model, "
+        "and recommendation engine using the real PostgreSQL prediction and recommendation logs."
+    ),
+    status_code=status.HTTP_200_OK,
+)
+async def get_model_intelligence(
+    service: DashboardService = Depends(get_dashboard_service),
+) -> ModelIntelligenceResponse:
+    try:
+        return await service.get_model_intelligence()
+    except Exception as exc:
+        logger.exception("Failed to compute model intelligence")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not compute model intelligence.",
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# 13. Campaign Opportunity Radar
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/campaign-opportunities",
+    response_model=CampaignOpportunityRadarResponse,
+    summary="Campaign Opportunity Radar",
+    description=(
+        "Returns ranked campaign opportunities from the current live 15-minute window, "
+        "including status, priority, CTR trend, conversion efficiency, fraud exposure, and recommended action."
+    ),
+    status_code=status.HTTP_200_OK,
+)
+async def get_campaign_opportunities(
+    service: DashboardService = Depends(get_dashboard_service),
+) -> CampaignOpportunityRadarResponse:
+    try:
+        return await service.get_campaign_opportunities()
+    except Exception as exc:
+        logger.exception("Failed to compute campaign opportunities")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not compute campaign opportunities.",
         ) from exc

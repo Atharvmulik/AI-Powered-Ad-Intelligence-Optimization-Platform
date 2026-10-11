@@ -190,6 +190,116 @@ class AIRecommendationResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# AI Ad Decision Center
+# ---------------------------------------------------------------------------
+
+class AIAdDecisionResponse(BaseModel):
+    """Deterministic decision summary for the current best ad or campaign."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    ad_id: Optional[str] = None
+    campaign_id: Optional[int] = None
+    campaign_name: Optional[str] = None
+    ctr: Optional[float] = Field(None, ge=0.0)
+    ctr_change: Optional[float] = None
+    fraud_risk: Optional[float] = Field(None, ge=0.0, le=100.0)
+    fraud_rate: Optional[float] = Field(None, ge=0.0, le=100.0)
+    conversion_rate: Optional[float] = Field(None, ge=0.0, le=100.0)
+    roas: Optional[float] = None
+    decision: str = Field(default="NO_DATA", description="SCALE | KEEP_RUNNING | MONITOR | OPTIMIZE | REDUCE | PAUSE | NO_DATA")
+    decision_score: float = Field(default=0.0, ge=0.0, le=100.0)
+    recommended_action: str = "Monitor"
+    reasons: List[str] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Live Model Intelligence
+# ---------------------------------------------------------------------------
+
+class CTRModelHealthResponse(BaseModel):
+    """Monitoring summary for the CTR prediction model."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    status: str = Field(..., description="healthy | degraded | no_data")
+    prediction_count: int = Field(..., ge=0)
+    average_prediction: Optional[float] = None
+    min_prediction: Optional[float] = None
+    max_prediction: Optional[float] = None
+
+
+class FraudModelHealthResponse(BaseModel):
+    """Monitoring summary for the fraud detection model."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    status: str = Field(..., description="healthy | degraded | no_data")
+    prediction_count: int = Field(..., ge=0)
+    average_risk: Optional[float] = None
+    min_risk: Optional[float] = None
+    max_risk: Optional[float] = None
+    high_risk_count: int = Field(..., ge=0)
+    critical_count: int = Field(..., ge=0)
+
+
+class RecommendationEngineHealthResponse(BaseModel):
+    """Monitoring summary for the recommendation engine."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    status: str = Field(..., description="healthy | degraded | no_data")
+    recommendation_count: int = Field(..., ge=0)
+    unique_ads: int = Field(..., ge=0)
+    average_score: Optional[float] = None
+
+
+class ModelIntelligenceResponse(BaseModel):
+    """Live monitoring payload for the platform intelligence stack."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    ctr_model: CTRModelHealthResponse
+    fraud_model: FraudModelHealthResponse
+    recommendation_engine: RecommendationEngineHealthResponse
+
+
+# ---------------------------------------------------------------------------
+# Campaign Opportunity Radar
+# ---------------------------------------------------------------------------
+
+class CampaignOpportunityItem(BaseModel):
+    """Single ranked campaign opportunity for action."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    campaign_id: int = Field(..., ge=0)
+    campaign_name: str
+    status: str = Field(..., description="SCALE | OPTIMIZE | MONITOR | REDUCE | PAUSE")
+    priority: str = Field(..., description="HIGH | MEDIUM | LOW")
+    ctr: Optional[float] = Field(None, ge=0.0)
+    ctr_change: Optional[float] = None
+    conversion_rate: Optional[float] = Field(None, ge=0.0, le=100.0)
+    fraud_rate: Optional[float] = Field(None, ge=0.0, le=100.0)
+    revenue: float = Field(default=0.0, ge=0.0)
+    spend: float = Field(default=0.0, ge=0.0)
+    roas: Optional[float] = None
+    reason: str
+    recommended_action: str
+
+
+class CampaignOpportunityRadarResponse(BaseModel):
+    """Ranked list of campaigns requiring attention in the live window."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    opportunities: List[CampaignOpportunityItem] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
 # WebSocket Live Update Payload
 # ---------------------------------------------------------------------------
 
@@ -204,3 +314,6 @@ class DashboardLiveUpdate(BaseModel):
     fraud_alert_count: int = Field(..., ge=0)
     revenue: float = Field(..., ge=0.0)
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+    ai_decision: Optional[AIAdDecisionResponse] = None
+    model_intelligence: Optional[ModelIntelligenceResponse] = None
+    campaign_opportunities: Optional[List[CampaignOpportunityItem]] = None

@@ -15,15 +15,22 @@ from sqlalchemy import and_, case, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.dashboard import (
+    AIAdDecisionResponse,
     AIRecommendationResponse,
     CampaignAnalyticsResponse,
+    CampaignOpportunityItem,
+    CampaignOpportunityRadarResponse,
+    CTRModelHealthResponse,
     CTRTrendResponse,
     DashboardLiveUpdate,
     ExecutiveSummaryResponse,
     FraudAlertResponse,
+    FraudModelHealthResponse,
     GeographicTrafficResponse,
     InsightItem,
+    ModelIntelligenceResponse,
     OverviewResponse,
+    RecommendationEngineHealthResponse,
     SHAPExplanationResponse,
     SHAPFeatureItem,
     SystemHealthResponse,
@@ -245,34 +252,72 @@ class DashboardService:
         return {int(row.campaign_id): int(row.fraud_clicks or 0) for row in rows if row.campaign_id is not None}
 
     async def _overview_snapshot(self) -> dict:
-        """Shared KPI dictionary for overview and live snapshot."""
-        AdCampaign, ClickEvent, FraudEvent, _, _, _, _, _ = _models()
+        """Shared recent KPI snapshot; ClickEvent only stores binary outcomes.
+
+        The event-rate denominator stays at 10 seconds, including during startup.
+        """
+        AdCampaign, ClickEvent, _, _, MLPredictionLog, _, _, _ = _models()
         now = datetime.now(timezone.utc)
+        fifteen_minutes_ago = now - timedelta(minutes=15)
+        five_minutes_ago = now - timedelta(minutes=5)
+        ten_seconds_ago = now - timedelta(seconds=10)
         one_minute_ago = now - timedelta(minutes=1)
 
-        total_events, total_impressions, total_clicks, total_conversions = await self._event_metrics()
-        ctr = await self._compute_ctr() if total_impressions > 0 else 0.0
-        active_users = await self._active_users(15)
+        recent_metrics_row = await self._db.execute(
+            select(
+                func.count().label("total_events"),
+                func.sum(case((ClickEvent.clicked.is_(False), 1), else_=0)).label("impressions"),
+                func.sum(case((ClickEvent.clicked.is_(True), 1), else_=0)).label("clicks"),
+                func.sum(case((ClickEvent.actual_outcome == 1, 1), else_=0)).label("conversions"),
+            )
+            .select_from(ClickEvent)
+            .where(ClickEvent.timestamp >= fifteen_minutes_ago)
+            .where(ClickEvent.timestamp <= now)
+        )
+        recent_metrics = recent_metrics_row.one()
+        total_events = int(recent_metrics.total_events or 0)
+        total_impressions = int(recent_metrics.impressions or 0)
+        total_clicks = int(recent_metrics.clicks or 0)
+        total_conversions = int(recent_metrics.conversions or 0)
+        ctr = self._safe_ratio(total_clicks, total_impressions)
 
-        fraud_score_row = await self._db.execute(select(func.avg(FraudEvent.fraud_score)))
-        avg_fraud = float(fraud_score_row.scalar_one() or 0.0)
-        fraud_score = round(avg_fraud * 100.0, 2)
+        active_users_row = await self._db.execute(
+            select(func.count(func.distinct(ClickEvent.user_id)))
+            .select_from(ClickEvent)
+            .where(ClickEvent.timestamp >= five_minutes_ago)
+            .where(ClickEvent.timestamp <= now)
+            .where(ClickEvent.clicked.is_(True))
+        )
+        active_users = int(active_users_row.scalar_one() or 0)
+
+        fraud_score_row = await self._db.execute(
+            select(func.avg(MLPredictionLog.fraud_probability))
+            .select_from(MLPredictionLog)
+            .where(MLPredictionLog.timestamp >= fifteen_minutes_ago)
+            .where(MLPredictionLog.timestamp <= now)
+        )
+        fraud_score = round(float(fraud_score_row.scalar_one() or 0.0) * 100.0, 2)
 
         revenue_row = await self._db.execute(select(func.sum(AdCampaign.revenue)))
         revenue = float(revenue_row.scalar_one() or 0.0)
 
-        recent_events_row = await self._db.execute(
-            select(
-                func.count().label("events"),
-                func.sum(case((ClickEvent.clicked.is_(True), 1), else_=0)).label("clicks"),
-            )
+        events_row = await self._db.execute(
+            select(func.count())
+            .select_from(ClickEvent)
+            .where(ClickEvent.timestamp >= ten_seconds_ago)
+            .where(ClickEvent.timestamp <= now)
+        )
+        recent_events = int(events_row.scalar_one() or 0)
+        events_per_second = round(recent_events / 10.0, 2)
+
+        recent_clicks_row = await self._db.execute(
+            select(func.count())
             .select_from(ClickEvent)
             .where(ClickEvent.timestamp >= one_minute_ago)
+            .where(ClickEvent.timestamp <= now)
+            .where(ClickEvent.clicked.is_(True))
         )
-        recent_metrics = recent_events_row.one()
-        recent_events = int(recent_metrics.events or 0)
-        recent_clicks = int(recent_metrics.clicks or 0)
-        events_per_second = round(recent_events / 60.0, 2)
+        recent_clicks = int(recent_clicks_row.scalar_one() or 0)
         clicks_per_second = round(recent_clicks / 60.0, 2)
 
         return {
@@ -674,16 +719,31 @@ class DashboardService:
         return ads
 
     async def get_geographic_traffic(self) -> List[GeographicTrafficResponse]:
-        """Aggregate real event traffic by location and use user-based fraud fallback when needed."""
+        """Aggregate current geographic traffic and normalized fraud/conversion ratios."""
         AdCampaign, ClickEvent, FraudEvent, _, _, _, _, User = _models()
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(minutes=15)
+        has_event_type = hasattr(ClickEvent, "event_type")
 
-        traffic_rows = (await self._db.execute(
+        traffic_stmt = (
             select(
                 ClickEvent.location.label("city"),
                 func.count().label("traffic"),
-                func.sum(case((ClickEvent.actual_outcome == 1, 1), else_=0)).label("conversions"),
+                func.sum(case((ClickEvent.event_type == "conversion", 1), else_=0)).label("conversions")
+                if has_event_type
+                else func.sum(case((ClickEvent.actual_outcome == 1, 1), else_=0)).label("conversions"),
             )
             .where(ClickEvent.location.is_not(None))
+            .where(ClickEvent.timestamp >= window_start)
+            .where(ClickEvent.timestamp <= now)
+        )
+        if has_event_type:
+            traffic_stmt = traffic_stmt.where(ClickEvent.event_type.in_(["view", "impression", "click", "conversion"]))
+        else:
+            traffic_stmt = traffic_stmt.where(ClickEvent.campaign_id.is_not(None))
+
+        traffic_rows = (await self._db.execute(
+            traffic_stmt
             .group_by(ClickEvent.location)
             .order_by(desc(func.count()))
             .limit(50)
@@ -693,24 +753,40 @@ class DashboardService:
             select(User.location.label("city"), func.count(FraudEvent.event_id).label("fraud_count"))
             .join(FraudEvent, FraudEvent.user_id == User.user_id)
             .where(User.location.is_not(None))
+            .where(FraudEvent.timestamp >= window_start)
+            .where(FraudEvent.timestamp <= now)
             .group_by(User.location)
         )).all()
         fraud_counts = {row.city: int(row.fraud_count or 0) for row in fraud_by_city if row.city is not None}
 
-        top_campaigns = (await self._db.execute(
+        top_campaign_stmt = (
             select(
                 ClickEvent.location.label("city"),
-                AdCampaign.campaign_name,
+                AdCampaign.campaign_name.label("campaign_name"),
                 func.count().label("cnt"),
             )
             .join(AdCampaign, AdCampaign.campaign_id == ClickEvent.campaign_id)
             .where(ClickEvent.location.is_not(None))
+            .where(ClickEvent.timestamp >= window_start)
+            .where(ClickEvent.timestamp <= now)
+        )
+        if has_event_type:
+            top_campaign_stmt = top_campaign_stmt.where(ClickEvent.event_type.in_(["view", "impression", "click", "conversion"]))
+        else:
+            top_campaign_stmt = top_campaign_stmt.where(ClickEvent.campaign_id.is_not(None))
+
+        top_campaign_rows = (await self._db.execute(
+            top_campaign_stmt
             .group_by(ClickEvent.location, AdCampaign.campaign_name)
+            .order_by(desc(func.count()), ClickEvent.location, AdCampaign.campaign_name)
         )).all()
-        city_campaign: dict[str, str] = {}
-        for row in top_campaigns:
-            if row.city and row.city not in city_campaign:
-                city_campaign[str(row.city)] = str(row.campaign_name)
+
+        city_campaign: dict[str, str | None] = {}
+        for row in top_campaign_rows:
+            city = str(row.city or "").strip()
+            if not city or city in city_campaign:
+                continue
+            city_campaign[city] = str(row.campaign_name) if row.campaign_name is not None else None
 
         geo_list: List[GeographicTrafficResponse] = []
         for row in traffic_rows:
@@ -718,22 +794,30 @@ class DashboardService:
             traffic = int(row.traffic or 0)
             conversions = int(row.conversions or 0)
             fraud_count = int(fraud_counts.get(city, 0) or 0)
+            conversion_rate = round(float(conversions) / float(traffic), 4) if traffic else 0.0
+            fraud_rate = round(float(fraud_count) / float(traffic), 4) if traffic else 0.0
             geo_list.append(
                 GeographicTrafficResponse(
                     city=city,
                     traffic=traffic,
-                    fraud_rate=self._safe_ratio(fraud_count, traffic),
-                    conversion_rate=self._safe_ratio(conversions, traffic),
+                    fraud_rate=fraud_rate,
+                    conversion_rate=conversion_rate,
                     top_campaign=city_campaign.get(city),
                 )
             )
         return geo_list
 
     async def get_fraud_alerts(self, limit: int = 20) -> List[FraudAlertResponse]:
-        """Return the newest persisted fraud rows from the synthetic + ML pipeline."""
+        """Return persisted fraud rows from the current 15-minute window."""
         _, _, FraudEvent, _, _, _, _, _ = _models()
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(minutes=15)
         result = await self._db.execute(
             select(FraudEvent)
+            .where(
+                FraudEvent.timestamp >= window_start,
+                FraudEvent.timestamp <= now,
+            )
             .order_by(desc(FraudEvent.timestamp))
             .limit(limit)
         )
@@ -914,6 +998,422 @@ class DashboardService:
             )
         return recommendations
 
+    async def get_ai_ad_decision(self) -> AIAdDecisionResponse:
+        """Return a deterministic recommendation for the strongest live campaign signal."""
+        AdCampaign, ClickEvent, _, _, _, _, _, _ = _models()
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(minutes=15)
+
+        stats = await self._db.execute(
+            select(
+                ClickEvent.campaign_id.label("campaign_id"),
+                AdCampaign.campaign_name.label("campaign_name"),
+                func.sum(case((ClickEvent.clicked.is_(False), 1), else_=0)).label("impressions"),
+                func.sum(case((ClickEvent.clicked.is_(True), 1), else_=0)).label("clicks"),
+                func.sum(case((ClickEvent.actual_outcome == 1, 1), else_=0)).label("conversions"),
+            )
+            .select_from(ClickEvent)
+            .join(AdCampaign, AdCampaign.campaign_id == ClickEvent.campaign_id)
+            .where(ClickEvent.timestamp >= window_start)
+            .where(ClickEvent.timestamp <= now)
+            .where(ClickEvent.campaign_id.is_not(None))
+            .group_by(ClickEvent.campaign_id, AdCampaign.campaign_name)
+        )
+        campaigns = stats.all()
+        if not campaigns:
+            return AIAdDecisionResponse(
+                decision="NO_DATA",
+                decision_score=0.0,
+                recommended_action="Monitor",
+                reasons=["No recent campaign traffic was available in the last 15 minutes."],
+                timestamp=now,
+            )
+
+        fraud_users = await self._fraud_user_ids(start=window_start, end=now)
+        fraud_clicks_by_campaign: dict[int, int] = {}
+        if fraud_users:
+            fraud_click_rows = await self._db.execute(
+                select(
+                    ClickEvent.campaign_id.label("campaign_id"),
+                    func.count().label("fraud_clicks"),
+                )
+                .where(ClickEvent.timestamp >= window_start)
+                .where(ClickEvent.timestamp <= now)
+                .where(ClickEvent.clicked.is_(True))
+                .where(ClickEvent.campaign_id.is_not(None))
+                .where(ClickEvent.user_id.in_(list(fraud_users)))
+                .group_by(ClickEvent.campaign_id)
+            )
+            fraud_clicks_by_campaign = {
+                int(row.campaign_id): int(row.fraud_clicks or 0)
+                for row in fraud_click_rows.all()
+                if row.campaign_id is not None
+            }
+
+        candidate_rows: list[dict] = []
+        for row in campaigns:
+            campaign_id = int(row.campaign_id)
+            impressions = int(row.impressions or 0)
+            clicks = int(row.clicks or 0)
+            conversions = int(row.conversions or 0)
+            ctr = self._safe_ratio(clicks, impressions)
+            conversion_rate = self._safe_ratio(conversions, clicks)
+            spend = float((await self._db.execute(select(AdCampaign.spend).where(AdCampaign.campaign_id == campaign_id))).scalar_one() or 0.0)
+            revenue = float((await self._db.execute(select(AdCampaign.revenue).where(AdCampaign.campaign_id == campaign_id))).scalar_one() or 0.0)
+            roas = round(revenue / spend, 2) if spend > 0 else 0.0
+            fraud_clicks = fraud_clicks_by_campaign.get(campaign_id, 0)
+            fraud_rate = self._safe_ratio(fraud_clicks, max(1, clicks))
+            candidate_rows.append(
+                {
+                    "campaign_id": campaign_id,
+                    "campaign_name": row.campaign_name,
+                    "ctr": ctr,
+                    "clicks": clicks,
+                    "impressions": impressions,
+                    "conversions": conversions,
+                    "conversion_rate": conversion_rate,
+                    "fraud_clicks": fraud_clicks,
+                    "fraud_rate": fraud_rate,
+                    "spend": spend,
+                    "revenue": revenue,
+                    "roas": roas,
+                }
+            )
+
+        if not candidate_rows:
+            return AIAdDecisionResponse(
+                decision="NO_DATA",
+                decision_score=0.0,
+                recommended_action="Monitor",
+                reasons=["No recent campaign performance data was available in the current live window."],
+                timestamp=now,
+            )
+
+        best = max(candidate_rows, key=lambda item: (
+            item["ctr"],
+            item["conversion_rate"],
+            item["roas"],
+            -item["fraud_rate"],
+            item["clicks"],
+        ))
+        recent_ctr = best["ctr"]
+        current_fraud = float(best["fraud_rate"])
+        current_conversion = float(best["conversion_rate"])
+        roas = float(best["roas"])
+        spend = float(best["spend"])
+        revenue = float(best["revenue"])
+
+        previous_start = now - timedelta(minutes=30)
+        prev_stats = await self._db.execute(
+            select(
+                ClickEvent.campaign_id,
+                func.sum(case((ClickEvent.clicked.is_(False), 1), else_=0)).label("impressions"),
+                func.sum(case((ClickEvent.clicked.is_(True), 1), else_=0)).label("clicks"),
+            )
+            .where(ClickEvent.timestamp >= previous_start)
+            .where(ClickEvent.timestamp < window_start)
+            .where(ClickEvent.campaign_id == best["campaign_id"])
+            .group_by(ClickEvent.campaign_id)
+        )
+        prev_row = prev_stats.one_or_none()
+        prev_impressions = int(prev_row.impressions or 0) if prev_row else 0
+        prev_clicks = int(prev_row.clicks or 0) if prev_row else 0
+        prev_ctr = self._safe_ratio(prev_clicks, prev_impressions)
+        ctr_change = round(((recent_ctr - prev_ctr) / prev_ctr) * 100.0, 2) if prev_ctr not in (0, None) else None
+
+        if recent_ctr >= 6.0 and current_fraud <= 8.0 and current_conversion >= 3.0 and roas >= 2.5:
+            decision = "SCALE"
+            action = "Increase Budget"
+            score = min(99.0, 55.0 + recent_ctr * 3.5 + current_conversion * 5.0 + max(0.0, roas * 8.0) - current_fraud * 1.5)
+        elif recent_ctr >= 3.0 and current_fraud <= 12.0 and roas >= 1.0:
+            decision = "KEEP_RUNNING"
+            action = "Maintain Spend"
+            score = min(95.0, 60.0 + recent_ctr * 4.0 + current_conversion * 3.0 - current_fraud * 1.1)
+        elif recent_ctr >= 2.0 and current_fraud <= 18.0:
+            decision = "MONITOR"
+            action = "Watch Conversion Quality"
+            score = min(90.0, 50.0 + recent_ctr * 3.0 + current_conversion * 2.0 - current_fraud * 1.2)
+        elif current_fraud >= 25.0 or recent_ctr < 1.5 or current_conversion < 1.0:
+            decision = "REDUCE"
+            action = "Reduce Spend"
+            score = max(0.0, 80.0 - current_fraud * 1.5 - max(0.0, 2.5 - recent_ctr) * 10.0)
+        else:
+            decision = "OPTIMIZE"
+            action = "Rebalance Creative"
+            score = max(0.0, 60.0 + recent_ctr * 2.0 - current_fraud * 1.1)
+
+        if spend <= 0:
+            spend = 0.0
+        if current_fraud >= 35.0 and (recent_ctr < 2.0 or current_conversion < 1.0):
+            decision = "PAUSE"
+            action = "Pause Campaign"
+            score = max(0.0, 55.0 - current_fraud * 1.2)
+
+        reasons: list[str] = []
+        if recent_ctr > 0:
+            reasons.append(f"CTR is {recent_ctr:.2f}% in the current live window.")
+        if current_fraud >= 0:
+            reasons.append(f"Fraud exposure is {current_fraud:.2f}% of recent clicks.")
+        if roas > 0:
+            reasons.append(f"ROAS is {roas:.2f}x with {revenue:,.2f} revenue on {spend:,.2f} spend.")
+        elif current_conversion > 0:
+            reasons.append(f"Conversion rate is {current_conversion:.2f}% across recent clicks.")
+        if ctr_change is not None:
+            reasons.append(f"CTR trend moved {ctr_change:+.2f}% versus the prior live window.")
+        if len(reasons) > 3:
+            reasons = reasons[:3]
+        if not reasons:
+            reasons = ["Campaign metrics are present but did not provide a strong actionable signal."]
+
+        return AIAdDecisionResponse(
+            ad_id=None,
+            campaign_id=best["campaign_id"],
+            campaign_name=best["campaign_name"],
+            ctr=round(recent_ctr, 2),
+            ctr_change=round(ctr_change, 2) if ctr_change is not None else None,
+            fraud_risk=min(100.0, current_fraud * 1.5),
+            fraud_rate=round(current_fraud, 2),
+            conversion_rate=round(current_conversion, 2),
+            roas=round(roas, 2) if roas > 0 else 0.0,
+            decision=decision,
+            decision_score=round(score, 2),
+            recommended_action=action,
+            reasons=reasons,
+            timestamp=now,
+        )
+
+    async def get_model_intelligence(self) -> ModelIntelligenceResponse:
+        """Summarize healthy behavior for the CTR, fraud, and recommendation models."""
+        _, _, _, _, MLPredictionLog, RecommendationLog, _, _ = _models()
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(minutes=15)
+
+        ctr_row = await self._db.execute(
+            select(
+                func.count().label("prediction_count"),
+                func.avg(MLPredictionLog.click_probability).label("average_prediction"),
+                func.min(MLPredictionLog.click_probability).label("min_prediction"),
+                func.max(MLPredictionLog.click_probability).label("max_prediction"),
+            )
+            .where(MLPredictionLog.timestamp >= window_start)
+            .where(MLPredictionLog.timestamp <= now)
+        )
+        ctr_result = ctr_row.one()
+        ctr_count = int(ctr_result.prediction_count or 0)
+        ctr_avg = float(ctr_result.average_prediction) if ctr_result.average_prediction is not None else None
+        ctr_min = float(ctr_result.min_prediction) if ctr_result.min_prediction is not None else None
+        ctr_max = float(ctr_result.max_prediction) if ctr_result.max_prediction is not None else None
+        ctr_status = "healthy" if ctr_count > 0 and all(value is not None for value in (ctr_avg, ctr_min, ctr_max)) else ("no_data" if ctr_count == 0 else "degraded")
+
+        fraud_row = await self._db.execute(
+            select(
+                func.count().label("prediction_count"),
+                func.avg(MLPredictionLog.fraud_probability).label("average_risk"),
+                func.min(MLPredictionLog.fraud_probability).label("min_risk"),
+                func.max(MLPredictionLog.fraud_probability).label("max_risk"),
+                func.sum(case((MLPredictionLog.fraud_probability >= 0.5, 1), else_=0)).label("high_risk_count"),
+                func.sum(case((MLPredictionLog.fraud_probability >= 0.9, 1), else_=0)).label("critical_count"),
+            )
+            .where(MLPredictionLog.timestamp >= window_start)
+            .where(MLPredictionLog.timestamp <= now)
+        )
+        fraud_result = fraud_row.one()
+        fraud_count = int(fraud_result.prediction_count or 0)
+        fraud_avg = float(fraud_result.average_risk) if fraud_result.average_risk is not None else None
+        fraud_min = float(fraud_result.min_risk) if fraud_result.min_risk is not None else None
+        fraud_max = float(fraud_result.max_risk) if fraud_result.max_risk is not None else None
+        high_risk_count = int(fraud_result.high_risk_count or 0)
+        critical_count = int(fraud_result.critical_count or 0)
+        fraud_status = "healthy" if fraud_count > 0 and all(value is not None for value in (fraud_avg, fraud_min, fraud_max)) else ("no_data" if fraud_count == 0 else "degraded")
+
+        recommendation_row = await self._db.execute(
+            select(
+                func.count().label("recommendation_count"),
+                func.count(func.distinct(RecommendationLog.ad_id)).label("unique_ads"),
+                func.avg(RecommendationLog.recommendation_score).label("average_score"),
+            )
+            .where(RecommendationLog.timestamp >= window_start)
+            .where(RecommendationLog.timestamp <= now)
+        )
+        recommendation_result = recommendation_row.one()
+        recommendation_count = int(recommendation_result.recommendation_count or 0)
+        unique_ads = int(recommendation_result.unique_ads or 0)
+        avg_score = float(recommendation_result.average_score) if recommendation_result.average_score is not None else None
+        recommendation_status = "healthy" if recommendation_count > 0 and avg_score is not None else ("no_data" if recommendation_count == 0 else "degraded")
+
+        return ModelIntelligenceResponse(
+            timestamp=now,
+            ctr_model=CTRModelHealthResponse(
+                status=ctr_status,
+                prediction_count=ctr_count,
+                average_prediction=round(ctr_avg, 4) if ctr_avg is not None else None,
+                min_prediction=round(ctr_min, 4) if ctr_min is not None else None,
+                max_prediction=round(ctr_max, 4) if ctr_max is not None else None,
+            ),
+            fraud_model=FraudModelHealthResponse(
+                status=fraud_status,
+                prediction_count=fraud_count,
+                average_risk=round(fraud_avg, 4) if fraud_avg is not None else None,
+                min_risk=round(fraud_min, 4) if fraud_min is not None else None,
+                max_risk=round(fraud_max, 4) if fraud_max is not None else None,
+                high_risk_count=high_risk_count,
+                critical_count=critical_count,
+            ),
+            recommendation_engine=RecommendationEngineHealthResponse(
+                status=recommendation_status,
+                recommendation_count=recommendation_count,
+                unique_ads=unique_ads,
+                average_score=round(avg_score, 4) if avg_score is not None else None,
+            ),
+        )
+
+    async def get_campaign_opportunities(self) -> CampaignOpportunityRadarResponse:
+        """Rank live campaigns by efficiency, trend, and fraud posture."""
+        AdCampaign, ClickEvent, _, _, _, _, _, _ = _models()
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(minutes=15)
+
+        campaign_rows = await self._db.execute(
+            select(
+                ClickEvent.campaign_id.label("campaign_id"),
+                AdCampaign.campaign_name.label("campaign_name"),
+                func.sum(case((ClickEvent.clicked.is_(False), 1), else_=0)).label("impressions"),
+                func.sum(case((ClickEvent.clicked.is_(True), 1), else_=0)).label("clicks"),
+                func.sum(case((ClickEvent.actual_outcome == 1, 1), else_=0)).label("conversions"),
+                AdCampaign.revenue.label("revenue"),
+                AdCampaign.spend.label("spend"),
+            )
+            .select_from(ClickEvent)
+            .join(AdCampaign, AdCampaign.campaign_id == ClickEvent.campaign_id)
+            .where(ClickEvent.timestamp >= window_start)
+            .where(ClickEvent.timestamp <= now)
+            .where(ClickEvent.campaign_id.is_not(None))
+            .group_by(ClickEvent.campaign_id, AdCampaign.campaign_name, AdCampaign.revenue, AdCampaign.spend)
+        )
+        campaigns = campaign_rows.all()
+        if not campaigns:
+            return CampaignOpportunityRadarResponse(timestamp=now, opportunities=[])
+
+        fraud_users = await self._fraud_user_ids(start=window_start, end=now)
+        fraud_clicks_by_campaign: dict[int, int] = {}
+        if fraud_users:
+            rows = await self._db.execute(
+                select(
+                    ClickEvent.campaign_id.label("campaign_id"),
+                    func.count().label("fraud_clicks"),
+                )
+                .where(ClickEvent.timestamp >= window_start)
+                .where(ClickEvent.timestamp <= now)
+                .where(ClickEvent.clicked.is_(True))
+                .where(ClickEvent.campaign_id.is_not(None))
+                .where(ClickEvent.user_id.in_(list(fraud_users)))
+                .group_by(ClickEvent.campaign_id)
+            )
+            fraud_clicks_by_campaign = {
+                int(row.campaign_id): int(row.fraud_clicks or 0)
+                for row in rows.all()
+                if row.campaign_id is not None
+            }
+
+        opportunities: list[CampaignOpportunityItem] = []
+        for row in campaigns:
+            campaign_id = int(row.campaign_id)
+            impressions = int(row.impressions or 0)
+            clicks = int(row.clicks or 0)
+            conversions = int(row.conversions or 0)
+            ctr = self._safe_ratio(clicks, impressions)
+            conversion_rate = self._safe_ratio(conversions, clicks)
+            revenue = float(row.revenue or 0.0)
+            spend = float(row.spend or 0.0)
+            roas = round(revenue / spend, 2) if spend > 0 else 0.0
+            fraud_clicks = fraud_clicks_by_campaign.get(campaign_id, 0)
+            fraud_rate = self._safe_ratio(fraud_clicks, max(1, clicks))
+
+            prev_query = await self._db.execute(
+                select(
+                    func.sum(case((ClickEvent.clicked.is_(False), 1), else_=0)).label("impressions"),
+                    func.sum(case((ClickEvent.clicked.is_(True), 1), else_=0)).label("clicks"),
+                )
+                .where(ClickEvent.timestamp >= now - timedelta(minutes=30))
+                .where(ClickEvent.timestamp < window_start)
+                .where(ClickEvent.campaign_id == campaign_id)
+            )
+            prev_vals = prev_query.one()
+            prior_impressions = int(prev_vals.impressions or 0)
+            prior_clicks = int(prev_vals.clicks or 0)
+            prior_ctr = self._safe_ratio(prior_clicks, prior_impressions)
+            ctr_change = None
+            if prior_ctr not in (0, None):
+                ctr_change = round(((ctr - prior_ctr) / prior_ctr) * 100.0, 2)
+
+            if impressions <= 0 or clicks <= 0:
+                continue
+            if ctr >= 6.0 and fraud_rate <= 8.0 and conversion_rate >= 3.0 and roas >= 2.0:
+                status = "SCALE"
+                priority = "HIGH"
+                reason = "Strong engagement with low fraud exposure."
+                action = "Increase Budget"
+            elif ctr >= 2.5 and conversion_rate < 2.0 and fraud_rate <= 12.0:
+                status = "OPTIMIZE"
+                priority = "MEDIUM"
+                reason = "Strong click activity but weak conversion efficiency."
+                action = "Refine Creative"
+            elif fraud_rate >= 12.0 or (ctr < 2.0 and fraud_rate >= 8.0):
+                status = "MONITOR"
+                priority = "HIGH" if fraud_rate >= 20.0 else "MEDIUM"
+                reason = "Fraud exposure is increasing in the current live window."
+                action = "Review Fraud Controls"
+            elif fraud_rate >= 25.0 or ctr < 1.5 or conversion_rate < 1.0:
+                status = "REDUCE"
+                priority = "HIGH"
+                reason = "High fraud exposure combined with weak campaign efficiency."
+                action = "Reduce Spend"
+            elif ctr < 2.0 and conversion_rate < 1.2:
+                status = "PAUSE"
+                priority = "HIGH"
+                reason = "Campaign efficiency is below acceptable thresholds in the live window."
+                action = "Pause Campaign"
+            else:
+                status = "MONITOR"
+                priority = "LOW"
+                reason = "Performance is acceptable but still needs monitoring in the live window."
+                action = "Monitor"
+
+            if status in {"SCALE", "REDUCE", "PAUSE"}:
+                priority = "HIGH"
+            elif status == "OPTIMIZE":
+                priority = "MEDIUM"
+            elif status == "MONITOR":
+                priority = "LOW" if ctr >= 2.0 and fraud_rate <= 5.0 else "MEDIUM"
+
+            opportunities.append(
+                CampaignOpportunityItem(
+                    campaign_id=campaign_id,
+                    campaign_name=row.campaign_name,
+                    status=status,
+                    priority=priority,
+                    ctr=round(ctr, 2),
+                    ctr_change=round(ctr_change, 2) if ctr_change is not None else None,
+                    conversion_rate=round(conversion_rate, 2),
+                    fraud_rate=round(fraud_rate, 2),
+                    revenue=revenue,
+                    spend=spend,
+                    roas=round(roas, 2) if roas > 0 else 0.0,
+                    reason=reason,
+                    recommended_action=action,
+                )
+            )
+
+        opportunities.sort(
+            key=lambda item: (
+                {"SCALE": 5, "OPTIMIZE": 4, "MONITOR": 3, "REDUCE": 2, "PAUSE": 1}.get(item.status, 0),
+                -(item.fraud_rate or 0.0),
+                -(item.ctr or 0.0),
+            ),
+            reverse=True,
+        )
+        return CampaignOpportunityRadarResponse(timestamp=now, opportunities=opportunities[:10])
+
     async def get_live_snapshot(self) -> DashboardLiveUpdate:
         """Lightweight snapshot for the WebSocket push loop using the same metrics as the overview API."""
         _, _, FraudEvent, _, _, _, _, _ = _models()
@@ -937,4 +1437,7 @@ class DashboardService:
             fraud_alert_count=fraud_alert_count,
             revenue=metrics["revenue"],
             timestamp=now,
+            ai_decision=await self.get_ai_ad_decision(),
+            model_intelligence=await self.get_model_intelligence(),
+            campaign_opportunities=(await self.get_campaign_opportunities()).opportunities,
         )

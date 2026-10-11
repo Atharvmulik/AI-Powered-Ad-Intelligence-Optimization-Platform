@@ -47,11 +47,41 @@ def build_ctr_feature_dict(event: Mapping[str, Any]) -> dict[str, Any]:
     age = int(event.get("age") or 30)
     interaction_count = int(event.get("interaction_count") or 0)
     bid_amount = _as_float(event.get("bid_amount"), 1.5)
-    historical_ctr = _as_float(event.get("historical_ctr"), 0.05)
+
+    profile_base_ctr = {
+        "low_engagement": 0.015,
+        "normal": 0.05,
+        "highly_engaged": 0.18,
+        "tech_focused": 0.12,
+        "gaming_focused": 0.2,
+        "sports_focused": 0.13,
+        "shopping_focused": 0.1,
+        "suspicious_high_frequency": 0.7,
+    }.get(profile.lower(), 0.05)
+    historical_ctr = _as_float(event.get("historical_ctr"), profile_base_ctr)
+    historical_ctr = max(0.0, min(0.95, historical_ctr))
+
     engagement_score = _as_float(event.get("engagement_score"), 0.3)
+    engagement_score = max(0.0, min(1.0, engagement_score))
+    if engagement_score <= 0.0:
+        engagement_score = {
+            "low_engagement": 0.18,
+            "normal": 0.42,
+            "highly_engaged": 0.7,
+            "tech_focused": 0.62,
+            "gaming_focused": 0.68,
+            "sports_focused": 0.58,
+            "shopping_focused": 0.52,
+            "suspicious_high_frequency": 0.88,
+        }.get(profile.lower(), 0.4)
+
     interest_match = _as_float(event.get("interest_match"), 0.0)
     if event.get("interest_match_flag") in (True, 1, "1", "true", "True"):
         interest_match = 1.0
+    if interest_match <= 0.0 and event.get("interest_match_flag") is not None:
+        interest_match = 1.0 if str(event.get("interest_match_flag")) not in {"0", "False", "false"} else 0.0
+    interest_match = max(0.0, min(1.0, interest_match))
+
     hour = int(timestamp.hour)
     minute = int(timestamp.minute)
     weekday = int(timestamp.weekday())

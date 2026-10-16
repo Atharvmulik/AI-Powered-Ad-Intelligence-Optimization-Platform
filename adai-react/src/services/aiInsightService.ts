@@ -10,6 +10,7 @@ import type {
   ModelStatusResponse,
   PredictionResponse,
   ShapResponse,
+  PredictionShapResponse,
   RecommendationResponse,
   AudienceResponse,
   InfrastructureResponse,
@@ -53,6 +54,11 @@ export const aiInsightService = {
     api
       .get<ShapResponse>(AI_INSIGHT_ENDPOINTS.shap, { params, signal })
       .then((r: AxiosResponse<ShapResponse>) => r.data),
+
+  getPredictionShap: (predictionId: number): Promise<PredictionShapResponse> =>
+    api
+      .get<PredictionShapResponse>(AI_INSIGHT_ENDPOINTS.predictionShap(predictionId))
+      .then((r: AxiosResponse<PredictionShapResponse>) => r.data),
 
   getRecommendations: (
     params: GetRecommendationsParams = {},

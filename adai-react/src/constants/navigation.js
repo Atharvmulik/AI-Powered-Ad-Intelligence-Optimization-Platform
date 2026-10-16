@@ -1,6 +1,5 @@
 export const navItems = [
   { to: '/dashboard', icon: 'dashboard', label: 'Dashboard', exact: true },
-  { to: '/dashboard/ad-management', icon: 'ads_click', label: 'Ad Management' },
   { to: '/dashboard/campaigns', icon: 'campaign', label: 'Campaigns' },
   { to: '/dashboard/analytics', icon: 'analytics', label: 'Analytics' },
   { to: '/dashboard/ai-insights', icon: 'psychology', label: 'AI Insights' },
@@ -15,7 +14,6 @@ export const bottomItems = [
 
 export const pageTitles = {
   '/dashboard': 'AdAI Intelligence',
-  '/dashboard/ad-management': 'Ad Management',
   '/dashboard/campaigns': 'Campaigns & Reports',
   '/dashboard/analytics': 'Analytics Overview',
   '/dashboard/ai-insights': 'AI Insights',
@@ -26,7 +24,6 @@ export const pageTitles = {
 
 export const searchPlaceholders = {
   '/dashboard': 'Search insights...',
-  '/dashboard/ad-management': 'Search intelligent ads...',
   '/dashboard/campaigns': 'Search analytics, campaigns, reports...',
   '/dashboard/analytics': 'Search analytics...',
   '/dashboard/ai-insights': 'Search predictions or models...',

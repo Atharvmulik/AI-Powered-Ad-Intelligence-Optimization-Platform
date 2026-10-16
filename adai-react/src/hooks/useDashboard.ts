@@ -4,7 +4,14 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { dashboardService } from '@/services/dashboardService'
-import type { DashboardState, WebSocketLivePayload } from '@/types/dashboard'
+import type {
+  DashboardState,
+  WebSocketLivePayload,
+  AiAdDecision,
+  ModelIntelligence,
+  CampaignOpportunity,
+  CampaignOpportunityResponse,
+} from '@/types/dashboard'
 
 const INITIAL_STATE: DashboardState = {
   overview: null,
@@ -16,8 +23,14 @@ const INITIAL_STATE: DashboardState = {
   fraudAlerts: [],
   infraStatus: [],
   recommendations: [],
+  aiAdDecision: null,
+  modelIntelligence: null,
+  campaignOpportunities: [],
   loading: true,
   error: null,
+  aiAdDecisionError: null,
+  modelIntelligenceError: null,
+  campaignOpportunitiesError: null,
 }
 
 const MAX_LIVE_CTR_POINTS = 60
@@ -65,6 +78,18 @@ const appendLiveCtrPoint = (prev: DashboardState, ctr: number, timestamp: number
   }
 }
 
+const normalizeCampaignOpportunities = (value: CampaignOpportunityResponse | CampaignOpportunity[] | null | undefined): CampaignOpportunity[] => {
+  if (!value) {
+    return []
+  }
+
+  if (Array.isArray(value)) {
+    return value
+  }
+
+  return Array.isArray(value.opportunities) ? value.opportunities : []
+}
+
 export function useDashboard() {
   const [state, setState] = useState<DashboardState>(INITIAL_STATE)
   const wsRef = useRef<WebSocket | null>(null)
@@ -79,7 +104,11 @@ export function useDashboard() {
   }, [])
 
   const fetchAll = useCallback(async () => {
-    setState((prev: DashboardState) => ({ ...prev, loading: true, error: null }))
+    setState((prev: DashboardState) => ({
+      ...prev,
+      loading: true,
+      error: null,
+    }))
 
     try {
       const [
@@ -92,6 +121,9 @@ export function useDashboard() {
         fraudAlerts,
         infraStatus,
         recommendations,
+        aiAdDecision,
+        modelIntelligence,
+        campaignOpportunitiesResponse,
       ] = await Promise.all([
         dashboardService.getOverview(),
         dashboardService.getExecutiveSummary(),
@@ -102,6 +134,18 @@ export function useDashboard() {
         dashboardService.getFraudAlerts(),
         dashboardService.getSystemHealth(),
         dashboardService.getRecommendations(),
+        dashboardService.getAiAdDecision().catch((error) => {
+          console.warn('AI decision endpoint failed:', error)
+          return null
+        }),
+        dashboardService.getModelIntelligence().catch((error) => {
+          console.warn('Model intelligence endpoint failed:', error)
+          return null
+        }),
+        dashboardService.getCampaignOpportunities().catch((error) => {
+          console.warn('Campaign opportunities endpoint failed:', error)
+          return { opportunities: [] }
+        }),
       ])
 
       setState({
@@ -114,8 +158,14 @@ export function useDashboard() {
         fraudAlerts: fraudAlerts ?? [],
         infraStatus: infraStatus ?? [],
         recommendations: recommendations ?? [],
+        aiAdDecision: (aiAdDecision ?? null) as AiAdDecision | null,
+        modelIntelligence: (modelIntelligence ?? null) as ModelIntelligence | null,
+        campaignOpportunities: normalizeCampaignOpportunities(campaignOpportunitiesResponse),
         loading: false,
         error: null,
+        aiAdDecisionError: aiAdDecision ? null : 'AI decision temporarily unavailable',
+        modelIntelligenceError: modelIntelligence ? null : 'Live model intelligence temporarily unavailable',
+        campaignOpportunitiesError: normalizeCampaignOpportunities(campaignOpportunitiesResponse).length > 0 ? null : null,
       })
     } catch (err) {
       setState((prev: DashboardState) => ({
@@ -143,6 +193,50 @@ export function useDashboard() {
       }
     }
   }, [clearReconnectTimer, fetchAll])
+
+  useEffect(() => {
+    const refreshFraudAlerts = async () => {
+      try {
+        const fraudAlerts = await dashboardService.getFraudAlerts()
+        setState((prev: DashboardState) => ({
+          ...prev,
+          fraudAlerts: fraudAlerts ?? [],
+        }))
+      } catch (error) {
+        console.warn('Failed to refresh dashboard fraud alerts:', error)
+      }
+    }
+
+    const intervalId = setInterval(refreshFraudAlerts, 5000)
+    return () => clearInterval(intervalId)
+  }, [])
+
+  useEffect(() => {
+    const refreshIntelligence = async () => {
+      try {
+        const [aiAdDecision, modelIntelligence, campaignOpportunitiesResponse] = await Promise.all([
+          dashboardService.getAiAdDecision().catch(() => null),
+          dashboardService.getModelIntelligence().catch(() => null),
+          dashboardService.getCampaignOpportunities().catch(() => ({ opportunities: [] })),
+        ])
+
+        setState((prev: DashboardState) => ({
+          ...prev,
+          aiAdDecision: aiAdDecision ?? prev.aiAdDecision ?? null,
+          modelIntelligence: modelIntelligence ?? prev.modelIntelligence ?? null,
+          campaignOpportunities: normalizeCampaignOpportunities(campaignOpportunitiesResponse),
+          aiAdDecisionError: aiAdDecision ? null : prev.aiAdDecisionError ?? 'AI decision temporarily unavailable',
+          modelIntelligenceError: modelIntelligence ? null : prev.modelIntelligenceError ?? 'Live model intelligence temporarily unavailable',
+          campaignOpportunitiesError: normalizeCampaignOpportunities(campaignOpportunitiesResponse).length > 0 ? null : prev.campaignOpportunitiesError,
+        }))
+      } catch (error) {
+        console.warn('Failed to refresh dashboard intelligence:', error)
+      }
+    }
+
+    const intervalId = setInterval(refreshIntelligence, 5000)
+    return () => clearInterval(intervalId)
+  }, [])
 
   useEffect(() => {
     if (!mountedRef.current) {

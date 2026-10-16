@@ -12,6 +12,8 @@ export const AI_INSIGHT_ENDPOINTS = {
   modelStatus: `${AI_INSIGHT_BASE}/model-status`,
   predictions: `${AI_INSIGHT_BASE}/predictions`,
   shap: `${AI_INSIGHT_BASE}/shap`,
+  predictionShap: (predictionId: number): string =>
+    `${AI_INSIGHT_BASE}/predictions/${predictionId}/shap`,
   recommendations: `${AI_INSIGHT_BASE}/recommendations`,
   audienceSegments: `${AI_INSIGHT_BASE}/audience-segments`,
   infrastructure: `${AI_INSIGHT_BASE}/infrastructure`,

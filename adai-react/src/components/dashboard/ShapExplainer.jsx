@@ -2,136 +2,152 @@
 // src/components/dashboard/ShapExplainer.jsx
 // ============================================================
 
-import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { dashboardService } from '@/services/dashboardService'
 
-export default function ShapExplainer({ topAds = [], selectedCampaignId = null }) {
-  const [selectedId, setSelectedId] = useState(selectedCampaignId)
-  const [shapData, setShapData] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
+const decisionStyles = {
+  SCALE: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300',
+  KEEP_RUNNING: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300',
+  MONITOR: 'border-amber-400/30 bg-amber-500/10 text-amber-300',
+  OPTIMIZE: 'border-violet-400/30 bg-violet-500/10 text-violet-300',
+  REDUCE: 'border-orange-400/30 bg-orange-500/10 text-orange-300',
+  PAUSE: 'border-red-400/30 bg-red-500/10 text-red-300',
+  NO_DATA: 'border-outline-variant bg-surface-container-low text-on-surface-variant',
+}
 
-  useEffect(() => {
-    if (selectedCampaignId) {
-      setSelectedId(selectedCampaignId)
-      return
-    }
-    if (!selectedCampaignId && topAds && topAds.length > 0 && !selectedId) {
-      setSelectedId(topAds[0].campaign_id)
-    }
-  }, [selectedCampaignId, topAds])
+const formatPercent = (value) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—'
+  return `${Number(value).toFixed(2)}%`
+}
 
-  useEffect(() => {
-    if (!selectedId) return
+const formatRoas = (value) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—'
+  return `${Number(value).toFixed(2)}x`
+}
 
-    let cancelled = false
-    setLoading(true)
-    setError(null)
+const formatDecision = (value) => {
+  if (!value) return 'NO DATA'
+  return String(value).replace(/_/g, ' ')
+}
 
-    dashboardService
-      .getShapExplanations(encodeURIComponent(selectedId))
-      .then((data) => {
-        if (!cancelled) {
-          setShapData(data)
-          setLoading(false)
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err.message ?? String(err))
-          setLoading(false)
-        }
-      })
+export default function ShapExplainer({ aiAdDecision = null, loading = false, error = null }) {
+  const decision = aiAdDecision
+  const reasonList = Array.isArray(decision?.reasons) && decision.reasons.length > 0
+    ? decision.reasons
+    : ['No recent campaign traffic was available in the last 15 minutes.']
 
-    return () => {
-      cancelled = true
-    }
-  }, [selectedId])
+  const decisionLabel = decision?.decision ? formatDecision(decision.decision) : 'NO DATA'
+  const normalizedDecision = String(decision?.decision ?? 'NO_DATA').toUpperCase()
+  const tone = decisionStyles[normalizedDecision] ?? decisionStyles.NO_DATA
+
+  if (loading) {
+    return (
+      <div className="lg:col-span-4 bg-surface-container border border-outline-variant rounded-xl p-6">
+        <div className="h-6 w-48 rounded-md bg-surface-container-low animate-pulse mb-4" />
+        <div className="h-20 w-full rounded-lg bg-surface-container-low animate-pulse mb-4" />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="h-16 rounded-lg bg-surface-container-low animate-pulse" />
+          <div className="h-16 rounded-lg bg-surface-container-low animate-pulse" />
+          <div className="h-16 rounded-lg bg-surface-container-low animate-pulse" />
+          <div className="h-16 rounded-lg bg-surface-container-low animate-pulse" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error && !decision) {
+    return (
+      <div className="lg:col-span-4 bg-surface-container border border-outline-variant rounded-xl p-6 flex items-center justify-center">
+        <div className="text-center">
+          <span className="material-symbols-outlined text-on-surface-variant text-3xl">signal_cellular_nodata</span>
+          <p className="mt-3 text-xs font-mono text-on-surface-variant">{error}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!decision) {
+    return (
+      <div className="lg:col-span-4 bg-surface-container border border-outline-variant rounded-xl p-6 flex items-center justify-center">
+        <div className="text-center">
+          <span className="material-symbols-outlined text-primary text-3xl">psychology</span>
+          <p className="mt-3 text-xs font-mono text-on-surface-variant">No recent intelligence available</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="lg:col-span-5 bg-surface-container border border-outline-variant rounded-xl p-6 flex flex-col justify-between relative overflow-hidden group">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+      className="lg:col-span-4 bg-surface-container border border-outline-variant rounded-xl p-6 flex flex-col justify-between relative overflow-hidden group"
+    >
       <div>
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary text-xl">neurology</span>
-            <h3 className="font-title-lg text-title-lg text-on-surface">
-              Why This Ad Was Recommended
-            </h3>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant">AI Ad Decision Center</p>
+            <h3 className="font-title-lg text-title-lg text-on-surface mt-1">{decision.campaign_name || 'Campaign'}</h3>
           </div>
-          {topAds.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-surface-container-high border border-outline-variant p-1 rounded-lg">
-              {topAds.map((ad) => (
-                <button
-                  key={ad.campaign_id}
-                  onClick={() => setSelectedId(ad.campaign_id)}
-                  className={`text-[9px] font-mono font-bold uppercase px-2 py-1 rounded transition-all ${
-                    selectedId === ad.campaign_id
-                      ? 'bg-primary text-on-primary shadow'
-                      : 'hover:bg-surface-bright text-on-surface-variant'
-                  }`}
-                >
-                  {ad.campaign_name.split(' ')[0]}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className={`px-2.5 py-1 rounded-full border text-[9px] font-mono font-bold uppercase tracking-[0.14em] ${tone}`}>
+            {decisionLabel}
+          </div>
         </div>
 
-        <p className="text-xs text-on-surface-variant mb-5 font-mono">
-          Campaign Model target:{' '}
-          <span className="font-bold text-on-surface">{selectedId ?? '—'}</span> · SHAP
-          Feature Contribution values (Transparency index: 94.8% reliable)
-        </p>
-
-        {loading && (
-          <div className="flex items-center justify-center h-32 text-on-surface-variant font-mono text-xs animate-pulse">
-            Loading SHAP explanations...
+        <div className="rounded-xl border border-outline-variant/50 bg-surface-container-low/30 p-4 mb-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant">Campaign</p>
+              <p className="mt-1 text-sm font-semibold text-on-surface">{decision.campaign_name || '—'}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant">Decision score</p>
+              <p className="mt-1 text-lg font-bold text-primary">{decision.decision_score != null ? Number(decision.decision_score).toFixed(2) : '—'}</p>
+            </div>
           </div>
-        )}
+        </div>
 
-        {error && !loading && (
-          <div className="flex items-center justify-center h-32 text-error font-mono text-xs">
-            {error}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="rounded-lg border border-outline-variant/50 bg-surface-container-low/30 p-3">
+            <p className="text-[9px] font-mono uppercase text-on-surface-variant">CTR</p>
+            <p className="mt-1 text-base font-bold text-on-surface">{formatPercent(decision.ctr)}</p>
           </div>
-        )}
+          <div className="rounded-lg border border-outline-variant/50 bg-surface-container-low/30 p-3">
+            <p className="text-[9px] font-mono uppercase text-on-surface-variant">Conversion</p>
+            <p className="mt-1 text-base font-bold text-on-surface">{formatPercent(decision.conversion_rate)}</p>
+          </div>
+          <div className="rounded-lg border border-outline-variant/50 bg-surface-container-low/30 p-3">
+            <p className="text-[9px] font-mono uppercase text-on-surface-variant">Fraud risk</p>
+            <p className="mt-1 text-base font-bold text-on-surface">{formatPercent(decision.fraud_risk ?? decision.fraud_rate)}</p>
+          </div>
+          <div className="rounded-lg border border-outline-variant/50 bg-surface-container-low/30 p-3">
+            <p className="text-[9px] font-mono uppercase text-on-surface-variant">ROAS</p>
+            <p className="mt-1 text-base font-bold text-on-surface">{formatRoas(decision.roas)}</p>
+          </div>
+        </div>
 
-        {!loading && !error && shapData && (
-          <div className="space-y-4">
-            {shapData.features.map((row, idx) => (
-              <div key={idx} className="relative group/bar cursor-help">
-                <div className="flex items-center justify-between text-xs font-mono font-bold mb-1">
-                  <span className="text-on-surface flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
-                    {row.feature}
-                  </span>
-                  <span className="text-green-400 font-extrabold">+{row.impact}%</span>
-                </div>
-                <div className="w-full bg-surface-container-low border border-outline-variant/30 h-2.5 rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${row.impact * 2.5}%` }}
-                    transition={{ duration: 0.6 }}
-                    className="h-full bg-primary rounded-full shadow-[0_0_8px_#8083ff]"
-                  />
-                </div>
-                <div className="absolute left-0 right-0 -top-12 z-20 hidden group-hover/bar:block bg-surface-container-high border border-outline rounded-lg p-2 text-[10px] font-mono leading-relaxed shadow-2xl">
-                  <div className="text-primary font-bold">{row.feature} Impact:</div>
-                  <div className="text-on-surface-variant">{row.details}</div>
-                </div>
-              </div>
+        <div className="mb-4">
+          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant">Recommended action</p>
+          <p className="mt-2 text-sm font-semibold text-on-surface">{decision.recommended_action || 'Monitor'}</p>
+        </div>
+
+        <div className="mb-4">
+          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant">Why</p>
+          <ul className="mt-2 space-y-2">
+            {reasonList.slice(0, 3).map((reason, idx) => (
+              <li key={idx} className="flex items-start gap-2 text-xs text-on-surface-variant leading-5">
+                <span className="material-symbols-outlined text-[14px] text-primary mt-0.5">check_circle</span>
+                <span>{reason}</span>
+              </li>
             ))}
-          </div>
-        )}
+          </ul>
+        </div>
       </div>
 
-      <div className="p-3 bg-surface-container-low/40 rounded-lg border border-outline-variant/30 text-[10px] text-on-surface-variant font-mono font-medium mt-6 flex gap-2">
-        <span className="material-symbols-outlined text-sm text-primary">visibility</span>
-        <span>
-          SHAP (SHapley Additive exPlanations) computes contribution weightings directly from
-          the model's neural network shards.
-        </span>
+      <div className="mt-4 flex items-center justify-between border-t border-outline-variant/40 pt-3 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant">
+        <span>{decision.timestamp ? new Date(decision.timestamp).toLocaleString() : '—'}</span>
+        <span>{decision.campaign_id || decision.ad_id || '—'}</span>
       </div>
-    </div>
+    </motion.div>
   )
 }

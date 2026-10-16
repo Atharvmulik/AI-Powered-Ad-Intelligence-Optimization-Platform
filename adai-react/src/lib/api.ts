@@ -24,7 +24,9 @@ api.interceptors.response.use(
       error?.message ??
       'An unexpected error occurred'
 
-    return Promise.reject(new Error(message))
+    const normalizedError = new Error(message) as Error & { status?: number }
+    normalizedError.status = error?.response?.status
+    return Promise.reject(normalizedError)
   }
 )
 

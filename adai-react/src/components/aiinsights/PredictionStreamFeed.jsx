@@ -4,17 +4,14 @@
 // Props: predictions (PredictionItem[]), onSelect(prediction), selectedKey
 
 import { useEffect, useRef } from 'react'
-import { isFraudPrediction, formatTimestamp } from '@/utils/aiInsightsHelpers'
-
-export function predictionKey(p) {
-  return `${p.ad_id}-${p.timestamp}`
-}
+import { isFraudPrediction, formatTimestamp, predictionKey } from '@/utils/aiInsightsHelpers'
 
 export default function PredictionStreamFeed({ predictions, onSelect, selectedKey }) {
   const terminalRef = useRef(null)
 
   useEffect(() => {
-    if (terminalRef.current) terminalRef.current.scrollTop = terminalRef.current.scrollHeight
+    if (!terminalRef.current) return
+    terminalRef.current.scrollTop = 0
   }, [predictions])
 
   return (

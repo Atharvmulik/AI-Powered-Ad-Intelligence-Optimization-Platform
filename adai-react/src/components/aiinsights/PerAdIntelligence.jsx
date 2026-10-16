@@ -10,7 +10,7 @@
 //   campaignInsightLoading — boolean
 //   onLookupCampaign  — (campaignId: string) => void
 
-import { useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 
 import { useExpandableItems } from '@/components/aiinsights/useExpandableItems'
@@ -20,16 +20,19 @@ import {
   getFraudRiskLabel,
   humanizeFeatureName,
   isShapPositive,
+  predictionKey,
 } from '@/utils/aiInsightsHelpers'
+
+const EMPTY_SHAP_FEATURES = []
 
 function MiniShapChart({ shapFeatures }) {
   if (!shapFeatures || shapFeatures.length === 0)
-    return <p className="text-[11px] text-on-surface-variant italic">No SHAP features for this campaign.</p>
+    return <p className="text-[11px] text-on-surface-variant italic">No campaign-level SHAP features available.</p>
 
   return (
     <div className="space-y-2">
-      {shapFeatures.map((feature) => (
-        <div key={feature.feature_name} className="flex items-center">
+      {shapFeatures.map((feature, index) => (
+        <div key={`${feature.feature_name}-${index}`} className="flex items-center">
           <div className="w-32 text-[10px] font-mono text-on-surface-variant truncate">
             {humanizeFeatureName(feature.feature_name)}
           </div>
@@ -52,7 +55,9 @@ function MiniShapChart({ shapFeatures }) {
   )
 }
 
-function PredictionRow({ prediction, campaignShap, expanded, onToggle }) {
+const PredictionRow = memo(function PredictionRow({ prediction, campaignShap, expanded, rowKey, onToggle }) {
+  const handleToggle = useCallback(() => onToggle(rowKey), [onToggle, rowKey])
+
   return (
     <div className="border border-outline-variant rounded-lg overflow-hidden">
       <div className="p-4 bg-surface-container-lowest hover:bg-surface-container-high transition-colors">
@@ -78,7 +83,7 @@ function PredictionRow({ prediction, campaignShap, expanded, onToggle }) {
           </div>
           <div className="col-span-12 md:col-span-2">
             <button
-              onClick={onToggle}
+              onClick={handleToggle}
               className="w-full text-xs text-primary hover:text-primary/80 font-mono flex items-center justify-center gap-1"
             >
               {expanded ? 'Hide SHAP' : 'View SHAP'}
@@ -90,13 +95,13 @@ function PredictionRow({ prediction, campaignShap, expanded, onToggle }) {
 
       {expanded && (
         <div className="border-t border-outline-variant/30 p-4 bg-surface-container-high">
-          <p className="text-xs font-mono text-primary mb-3">Feature impact for this campaign</p>
+          <p className="text-xs font-mono text-primary mb-3">Campaign-level feature impact</p>
           <MiniShapChart shapFeatures={campaignShap} />
         </div>
       )}
     </div>
   )
-}
+})
 
 function CampaignDeepDive({ campaignInsight, loading, onLookupCampaign }) {
   const [input, setInput] = useState('')
@@ -163,10 +168,17 @@ export default function PerAdIntelligence({ predictions, shapFeatures, campaignI
   const [expandedKey, setExpandedKey] = useState(null)
   const { expanded, visibleItems, toggleExpanded } = useExpandableItems(predictions, 5)
 
-  const toggleRow = (key) => setExpandedKey((prev) => (prev === key ? null : key))
+  const toggleRow = useCallback((key) => setExpandedKey((prev) => (prev === key ? null : key)), [])
 
-  const shapByCampaign = (campaignName) =>
-    (shapFeatures ?? []).filter((f) => f.campaign_name === campaignName)
+  const shapByCampaign = useMemo(() => {
+    const byCampaign = new Map()
+    for (const feature of shapFeatures ?? []) {
+      const campaignFeatures = byCampaign.get(feature.campaign_name) ?? []
+      campaignFeatures.push(feature)
+      byCampaign.set(feature.campaign_name, campaignFeatures)
+    }
+    return byCampaign
+  }, [shapFeatures])
 
   const hasMorePredictions = (predictions?.length ?? 0) > 5
 
@@ -184,7 +196,7 @@ export default function PerAdIntelligence({ predictions, shapFeatures, campaignI
           <div className="space-y-3">
             <AnimatePresence mode="popLayout">
               {visibleItems.map((prediction) => {
-                const key = `${prediction.ad_id}-${prediction.timestamp}`
+                const key = predictionKey(prediction)
                 return (
                   <motion.div
                     key={key}
@@ -196,9 +208,10 @@ export default function PerAdIntelligence({ predictions, shapFeatures, campaignI
                   >
                     <PredictionRow
                       prediction={prediction}
-                      campaignShap={shapByCampaign(prediction.campaign_name)}
+                      campaignShap={shapByCampaign.get(prediction.campaign_name) ?? EMPTY_SHAP_FEATURES}
                       expanded={expandedKey === key}
-                      onToggle={() => toggleRow(key)}
+                      rowKey={key}
+                      onToggle={toggleRow}
                     />
                   </motion.div>
                 )

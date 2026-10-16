@@ -78,3 +78,28 @@ export function getInfraStatusColor(status) {
   if (normalized === 'degraded') return 'bg-amber-500/10 text-amber-500'
   return 'bg-error/10 text-error'
 }
+
+export function predictionKey(prediction) {
+  if (!prediction) return ''
+  if (prediction.prediction_id !== null && prediction.prediction_id !== undefined) {
+    return `prediction:${prediction.prediction_id}`
+  }
+
+  // Older prediction records may not include the stable backend identifier.
+  const identity = [
+    prediction.ad_id ?? null,
+    prediction.timestamp ?? null,
+    prediction.model_version ?? null,
+  ]
+
+  if (!prediction.timestamp) {
+    identity.push(
+      prediction.click_probability ?? null,
+      prediction.fraud_probability ?? null,
+      prediction.recommendation_score ?? null,
+      prediction.inference_latency_ms ?? null,
+    )
+  }
+
+  return JSON.stringify(identity)
+}

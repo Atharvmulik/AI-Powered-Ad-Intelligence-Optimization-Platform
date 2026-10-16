@@ -12,7 +12,6 @@ import Layout from './components/layout/Layout'
 const LandingPage = lazy(() => import('./pages/LandingPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
-const AdManagement = lazy(() => import('./pages/AdManagement'))
 const Campaigns = lazy(() => import('./pages/Campaigns'))
 const Analytics = lazy(() => import('./pages/Analytics'))
 const AIInsights = lazy(() => import('./pages/AIInsights'))
@@ -47,7 +46,6 @@ export default function App() {
               }
             >
               <Route index element={<Dashboard />} />
-              <Route path="ad-management" element={<AdManagement />} />
               <Route path="campaigns" element={<Campaigns />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="ai-insights" element={<AIInsights />} />

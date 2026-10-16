@@ -19,7 +19,11 @@ function RecommendationCard({ rec }) {
       {rec.explanation && (
         <div className="flex items-start mt-3">
           <span className="material-symbols-outlined text-primary text-sm mt-1 mr-2">lightbulb</span>
-          <p className="text-body-md text-on-surface-variant">{rec.explanation}</p>
+          <p className="text-body-md text-on-surface-variant">
+            {rec.explanation === 'Recommended because it matches your interest in Finance'
+              ? "Recommended based on the user's interest in Finance"
+              : rec.explanation}
+          </p>
         </div>
       )}
     </div>
@@ -27,7 +31,15 @@ function RecommendationCard({ rec }) {
 }
 
 export default function RecommendationExplanation({ recommendations }) {
-  const items = recommendations ?? []
+  const items = Array.isArray(recommendations)
+    ? [...recommendations].sort((a, b) => {
+        const aTimestamp = Date.parse(a.timestamp)
+        const bTimestamp = Date.parse(b.timestamp)
+        if (Number.isNaN(aTimestamp)) return Number.isNaN(bTimestamp) ? 0 : 1
+        if (Number.isNaN(bTimestamp)) return -1
+        return bTimestamp - aTimestamp
+      })
+    : []
 
   return (
     <section className="col-span-12 lg:col-span-7 bg-surface-container-low border border-outline-variant rounded-xl p-stack-lg">

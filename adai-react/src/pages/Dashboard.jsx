@@ -3,6 +3,7 @@
 // ============================================================
 
 import { useState } from 'react'
+import { motion } from 'framer-motion'
 import { formatCurrency, formatNumber } from '@/utils/formatters'
 import { useDashboard } from '@/hooks/useDashboard'
 
@@ -28,6 +29,11 @@ export default function Dashboard() {
     fraudAlerts,
     infraStatus,
     recommendations,
+    aiAdDecision,
+    modelIntelligence,
+    campaignOpportunities,
+    aiAdDecisionError,
+    modelIntelligenceError,
     loading,
     error,
     refreshDashboard,
@@ -318,32 +324,120 @@ export default function Dashboard() {
       </div>
 
       {/* ======================================================
-          SHAP + INFRA + RECOMMENDATIONS
+          AI DECISION + MODEL INTELLIGENCE + OPPORTUNITY RADAR
       ====================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-stack-lg">
 
         <ShapExplainer
-          topAds={topAds}
-          selectedCampaignId={selectedCampaignId}
+          aiAdDecision={aiAdDecision}
+          loading={loading}
+          error={aiAdDecisionError}
         />
 
-        <InfraStatus infraStatus={infraStatus} />
+        <InfraStatus
+          modelIntelligence={modelIntelligence}
+          loading={loading}
+          error={modelIntelligenceError}
+        />
 
         <div className="lg:col-span-4">
-          {(recommendations ?? []).map((card, i) => (
-            <div
-              key={i}
-              className="p-3 border rounded mb-2"
-            >
-              <div className="font-bold">
-                {card.title}
+          <div className="bg-surface-container border border-outline-variant rounded-xl p-6 flex flex-col h-full">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant">Campaign Watch</p>
+                <h3 className="font-title-lg text-title-lg text-on-surface mt-1">Campaign Opportunity Radar</h3>
               </div>
-
-              <div className="text-xs">
-                {card.description}
-              </div>
+              <span className="px-2 py-1 rounded-full border border-primary/20 bg-primary/10 text-[9px] font-mono font-bold uppercase text-primary">
+                LIVE
+              </span>
             </div>
-          ))}
+
+            {(campaignOpportunities ?? []).length === 0 ? (
+              <div className="flex-1 flex items-center justify-center text-center border border-dashed border-outline-variant rounded-xl bg-surface-container-low/30 p-6">
+                <div>
+                  <span className="material-symbols-outlined text-primary text-3xl">radar</span>
+                  <p className="mt-3 text-xs font-mono text-on-surface-variant">No recent intelligence available</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[430px] overflow-y-auto pr-1">
+                {(campaignOpportunities ?? []).slice(0, 5).map((opportunity, index) => {
+                  const priorityTone = {
+                    HIGH: 'border-red-400/30 bg-red-500/10 text-red-300',
+                    MEDIUM: 'border-amber-400/30 bg-amber-500/10 text-amber-300',
+                    LOW: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300',
+                  }[String(opportunity.priority ?? 'MEDIUM').toUpperCase()] ?? 'border-outline-variant bg-surface-container-low text-on-surface-variant'
+
+                  const statusTone = {
+                    SCALE: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300',
+                    OPTIMIZE: 'border-violet-400/30 bg-violet-500/10 text-violet-300',
+                    MONITOR: 'border-amber-400/30 bg-amber-500/10 text-amber-300',
+                    REDUCE: 'border-orange-400/30 bg-orange-500/10 text-orange-300',
+                    PAUSE: 'border-red-400/30 bg-red-500/10 text-red-300',
+                  }[String(opportunity.status ?? 'MONITOR').toUpperCase()] ?? 'border-outline-variant bg-surface-container-low text-on-surface-variant'
+
+                  return (
+                    <motion.div
+                      key={opportunity.campaign_id ?? opportunity.id ?? index}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2, delay: index * 0.03 }}
+                      className="rounded-xl border border-outline-variant/50 bg-surface-container-low/30 p-3 hover:border-primary/30 hover:bg-surface-container-low/60 transition-all duration-200"
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div>
+                          <p className="text-[9px] font-mono uppercase tracking-[0.16em] text-on-surface-variant">{String(opportunity.priority ?? 'MEDIUM').toUpperCase()}</p>
+                          <p className="mt-1 text-sm font-semibold text-on-surface">{opportunity.campaign_name || 'Campaign'}</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full border text-[8px] font-mono font-bold uppercase ${priorityTone}`}>
+                          {String(opportunity.priority ?? 'MEDIUM').toUpperCase()}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`px-2 py-1 rounded-full border text-[8px] font-mono font-bold uppercase ${statusTone}`}>
+                          {String(opportunity.status ?? 'MONITOR').toUpperCase()}
+                        </span>
+                        <span className="text-[9px] font-mono text-on-surface-variant">
+                          {opportunity.campaign_id || opportunity.id || '—'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[10px] font-mono text-on-surface-variant">
+                        <div>
+                          <p>CTR</p>
+                          <p className="mt-1 text-sm font-bold text-on-surface">{opportunity.ctr != null ? `${Number(opportunity.ctr).toFixed(2)}%` : '—'}</p>
+                        </div>
+                        <div>
+                          <p>CVR</p>
+                          <p className="mt-1 text-sm font-bold text-on-surface">{opportunity.conversion_rate != null ? `${Number(opportunity.conversion_rate).toFixed(2)}%` : '—'}</p>
+                        </div>
+                        <div>
+                          <p>FRAUD</p>
+                          <p className="mt-1 text-sm font-bold text-on-surface">{opportunity.fraud_rate != null ? `${Number(opportunity.fraud_rate).toFixed(2)}%` : '—'}</p>
+                        </div>
+                        <div>
+                          <p>ROAS</p>
+                          <p className="mt-1 text-sm font-bold text-on-surface">{opportunity.roas != null ? `${Number(opportunity.roas).toFixed(2)}x` : '—'}</p>
+                        </div>
+                      </div>
+
+                      {opportunity.reason && (
+                        <p className="mt-3 text-xs text-on-surface-variant leading-5">“{opportunity.reason}”</p>
+                      )}
+
+                      {opportunity.recommended_action && (
+                        <div className="mt-3 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.12em] text-primary">
+                          <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                          <span>{opportunity.recommended_action}</span>
+                        </div>
+                      )}
+                    </motion.div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
       </div>

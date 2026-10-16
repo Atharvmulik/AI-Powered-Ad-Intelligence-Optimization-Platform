@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { AI_INSIGHT_WS_URL } from '@/lib/aiinsight'
-import type { AIInsightLiveUpdate } from '@/types/aiinsight'
+import { isAIInsightLiveUpdate, isPredictionCreatedEvent, type AIInsightLiveUpdate, type PredictionItem } from '@/types/aiinsight'
 
 const RECONNECT_DELAY_MS = 3000
 const MAX_RECONNECT_ATTEMPTS = 10
@@ -18,6 +18,7 @@ export function useAIInsightWebSocket() {
   const reconnectAttempts = useRef(0)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isMounted = useRef(true)
+  const predictionListenerRef = useRef<((prediction: PredictionItem) => void) | null>(null)
 
   const clearReconnectTimer = () => {
     if (reconnectTimer.current) {
@@ -25,6 +26,11 @@ export function useAIInsightWebSocket() {
       reconnectTimer.current = null
     }
   }
+
+  const notifyPrediction = useCallback((prediction: PredictionItem) => {
+    if (!isMounted.current || !predictionListenerRef.current) return
+    predictionListenerRef.current(prediction)
+  }, [])
 
   const connect = useCallback(() => {
     if (!isMounted.current) return
@@ -42,10 +48,21 @@ export function useAIInsightWebSocket() {
 
       ws.onmessage = (event: MessageEvent) => {
         if (!isMounted.current) return
+
         try {
-          const payload: AIInsightLiveUpdate = JSON.parse(event.data as string)
-          setLiveData(payload)
-          setLastUpdated(payload.timestamp ?? new Date().toISOString())
+          const parsed = typeof event.data === 'string' ? JSON.parse(event.data) : null
+          if (!parsed || typeof parsed !== 'object') return
+
+          if (isAIInsightLiveUpdate(parsed)) {
+            setLiveData(parsed)
+            setLastUpdated(parsed.timestamp ?? new Date().toISOString())
+            return
+          }
+
+          if (isPredictionCreatedEvent(parsed)) {
+            notifyPrediction(parsed.data)
+            return
+          }
         } catch {
           // silently discard malformed frames
         }
@@ -72,7 +89,7 @@ export function useAIInsightWebSocket() {
         reconnectTimer.current = setTimeout(connect, RECONNECT_DELAY_MS)
       }
     }
-  }, [])
+  }, [notifyPrediction])
 
   useEffect(() => {
     isMounted.current = true
@@ -88,5 +105,17 @@ export function useAIInsightWebSocket() {
     }
   }, [connect])
 
-  return { liveData, connected, lastUpdated }
+  return {
+    liveData,
+    connected,
+    lastUpdated,
+    subscribeToPredictions: (onPrediction: (prediction: PredictionItem) => void) => {
+      predictionListenerRef.current = onPrediction
+      return () => {
+        if (predictionListenerRef.current === onPrediction) {
+          predictionListenerRef.current = null
+        }
+      }
+    },
+  }
 }

@@ -5,9 +5,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { WebSocketLivePayload } from '@/types/dashboard'
 
-const WS_URL = (import.meta as any).env?.VITE_WS_URL || 'ws://localhost:8000/ws/dashboard/live'
+const DASHBOARD_WS_PATH = '/ws/dashboard/live'
+const configuredWsUrl = import.meta.env.VITE_WS_URL?.trim() || 'ws://localhost:8000'
+const WS_URL = `${configuredWsUrl.replace(/\/+$/, '').replace(/\/ws\/dashboard\/live$/, '')}${DASHBOARD_WS_PATH}`
 const RECONNECT_DELAY_MS = 3000
-const MAX_RECONNECT_ATTEMPTS = 10
 
 export function useDashboardWebSocket() {
   const [liveData, setLiveData] = useState<WebSocketLivePayload | null>(null)
@@ -19,7 +20,7 @@ export function useDashboardWebSocket() {
   const isMounted = useRef(true)
 
   const clearReconnectTimer = () => {
-    if (reconnectTimer.current) {
+    if (reconnectTimer.current !== null) {
       clearTimeout(reconnectTimer.current)
       reconnectTimer.current = null
     }
@@ -27,48 +28,64 @@ export function useDashboardWebSocket() {
 
   const connect = useCallback(() => {
     if (!isMounted.current) return
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return
+
+    const existingSocket = wsRef.current
+    if (existingSocket && existingSocket.readyState !== WebSocket.CLOSED) return
+
+    const scheduleReconnect = () => {
+      if (!isMounted.current || reconnectTimer.current !== null) return
+
+      reconnectAttempts.current += 1
+      reconnectTimer.current = setTimeout(() => {
+        reconnectTimer.current = null
+        connect()
+      }, RECONNECT_DELAY_MS)
+    }
 
     try {
       const ws = new WebSocket(WS_URL)
       wsRef.current = ws
 
       ws.onopen = () => {
-        if (!isMounted.current) return
+        if (!isMounted.current || wsRef.current !== ws) return
         setConnected(true)
         reconnectAttempts.current = 0
       }
 
       ws.onmessage = (event: MessageEvent) => {
-        if (!isMounted.current) return
+        if (!isMounted.current || wsRef.current !== ws) return
         try {
           const payload: WebSocketLivePayload = JSON.parse(event.data as string)
           setLiveData(payload)
-        } catch {
-          // silently discard malformed frames
+        } catch (error) {
+          if (import.meta.env.DEV) {
+            console.error('Failed to parse dashboard WebSocket message:', error)
+          }
         }
       }
 
       ws.onclose = () => {
-        if (!isMounted.current) return
-        setConnected(false)
+        if (wsRef.current !== ws) return
         wsRef.current = null
+        setConnected(false)
+        scheduleReconnect()
+      }
 
-        if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
-          reconnectAttempts.current += 1
-          reconnectTimer.current = setTimeout(connect, RECONNECT_DELAY_MS)
+      ws.onerror = (event) => {
+        if (wsRef.current !== ws) return
+        setConnected(false)
+        if (import.meta.env.DEV) {
+          console.error('Dashboard WebSocket connection error:', event)
+        }
+        if (ws.readyState !== WebSocket.CLOSING && ws.readyState !== WebSocket.CLOSED) {
+          ws.close()
         }
       }
-
-      ws.onerror = () => {
-        ws.close()
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('Unable to create dashboard WebSocket connection:', error)
       }
-    } catch {
-      if (!isMounted.current) return
-      if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
-        reconnectAttempts.current += 1
-        reconnectTimer.current = setTimeout(connect, RECONNECT_DELAY_MS)
-      }
+      scheduleReconnect()
     }
   }, [])
 

@@ -15,6 +15,9 @@ import type {
   ShapExplanation,
   SystemHealthService,
   Recommendation,
+  AiAdDecision,
+  ModelIntelligence,
+  CampaignOpportunityResponse,
 } from '@/types/dashboard'
 
 const BASE = '/dashboard'
@@ -59,4 +62,19 @@ export const dashboardService = {
     api
       .get<Recommendation[]>(`${BASE}/recommendations`)
       .then((r: AxiosResponse<Recommendation[]>) => r.data),
+
+  getAiAdDecision: (): Promise<AiAdDecision> =>
+    api
+      .get<AiAdDecision>(`${BASE}/ai-ad-decision`)
+      .then((r: AxiosResponse<AiAdDecision>) => r.data),
+
+  getModelIntelligence: (): Promise<ModelIntelligence> =>
+    api
+      .get<ModelIntelligence>(`${BASE}/model-intelligence`)
+      .then((r: AxiosResponse<ModelIntelligence>) => r.data),
+
+  getCampaignOpportunities: (): Promise<CampaignOpportunityResponse> =>
+    api
+      .get<CampaignOpportunityResponse>(`${BASE}/campaign-opportunities`)
+      .then((r: AxiosResponse<CampaignOpportunityResponse>) => r.data),
 }

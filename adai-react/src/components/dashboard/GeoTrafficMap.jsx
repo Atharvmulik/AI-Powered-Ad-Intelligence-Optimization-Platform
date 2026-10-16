@@ -31,14 +31,20 @@ export default function GeoTrafficMap({ geoTraffic = [] }) {
 
   const cityMap = useMemo(() => {
     const map = {}
-    geoTraffic.forEach((item) => {
-      map[item.city] = item
-    })
+    if (Array.isArray(geoTraffic)) {
+      geoTraffic.forEach((item) => {
+        map[item.city] = item
+      })
+    }
     return map
   }, [geoTraffic])
 
   const markers = useMemo(() => {
-    return geoTraffic.map((item) => ({ ...item, ...hashToPosition(item.city) }))
+    if (!Array.isArray(geoTraffic)) return []
+    return geoTraffic.map((item) => ({
+      ...item,
+      ...hashToPosition(item.city),
+    }))
   }, [geoTraffic])
 
   const hoveredData = hoveredCity ? cityMap[hoveredCity] : null
@@ -61,46 +67,52 @@ export default function GeoTrafficMap({ geoTraffic = [] }) {
         </div>
 
         <div className="relative h-full w-full max-w-[200px] aspect-[4/5] flex items-center justify-center">
-          {/* India outline SVG */}
-          <div className="absolute inset-0 flex items-center justify-center opacity-30 select-none pointer-events-none">
-            <svg
-              className="w-full h-full text-outline-variant"
-              viewBox="0 0 100 120"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
-            >
-              <path d="M45 5 L55 10 L65 25 L85 30 L80 40 L70 50 L60 65 L55 85 L50 115 L45 85 L35 70 L25 55 L15 45 L10 30 L20 20 L35 15 Z" />
-            </svg>
-          </div>
+          {markers.length === 0 ? (
+            <p className="relative z-10 text-center text-xs text-on-surface-variant">
+              No geographic traffic data available
+            </p>
+          ) : (
+            <>
+              {/* India outline SVG */}
+              <div className="absolute inset-0 flex items-center justify-center opacity-30 select-none pointer-events-none">
+                <svg
+                  className="w-full h-full text-outline-variant"
+                  viewBox="0 0 100 120"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1"
+                >
+                  <path d="M45 5 L55 10 L65 25 L85 30 L80 40 L70 50 L60 65 L55 85 L50 115 L45 85 L35 70 L25 55 L15 45 L10 30 L20 20 L35 15 Z" />
+                </svg>
+              </div>
 
-          {/* Dynamic city markers from backend */}
-          {markers.map((city) => {
-            const color = getMarkerColor(city.fraud_rate)
-            const size = getMarkerSize(city.traffic)
-            return (
-              <button
-                key={city.city}
-                style={{ top: city.top, left: city.left }}
-                onMouseEnter={() => setHoveredCity(city.city)}
-                onMouseLeave={() => setHoveredCity(null)}
-                className={`absolute ${size} ${color.bg} rounded-full cursor-pointer hover:scale-125 transition-transform ${color.shadow} z-20`}
-              >
-                <span
-                  className={`animate-ping absolute inline-flex h-full w-full rounded-full ${color.glow} opacity-60`}
-                ></span>
-              </button>
-            )
-          })}
-
-          {/* labels are generated dynamically from backend markers when hovered */}
+              {/* Dynamic city markers from backend */}
+              {markers.map((city) => {
+                const color = getMarkerColor(city.fraud_rate)
+                const size = getMarkerSize(city.traffic)
+                return (
+                  <button
+                    key={city.city}
+                    style={{ top: city.top, left: city.left }}
+                    onMouseEnter={() => setHoveredCity(city.city)}
+                    onMouseLeave={() => setHoveredCity(null)}
+                    className={`absolute ${size} ${color.bg} rounded-full cursor-pointer hover:scale-125 transition-transform ${color.shadow} z-20`}
+                  >
+                    <span
+                      className={`animate-ping absolute inline-flex h-full w-full rounded-full ${color.glow} opacity-60`}
+                    ></span>
+                  </button>
+                )
+              })}
+            </>
+          )}
         </div>
 
         {/* Hover tooltip */}
         {hoveredCity && hoveredData && (
           <div className="absolute top-2 left-2 right-2 bg-surface-container-high/95 border border-outline rounded-lg p-2 shadow-2xl z-30 text-[10px] font-mono leading-relaxed">
             <div className="font-extrabold text-xs text-primary mb-1 uppercase tracking-wider">
-              {hoveredCity} Hub
+              {hoveredCity}
             </div>
             <div className="flex justify-between">
               <span>Traffic Vol:</span>
@@ -115,7 +127,7 @@ export default function GeoTrafficMap({ geoTraffic = [] }) {
               </span>
             </div>
             <div className="flex justify-between">
-              <span>Conv Rate:</span>
+              <span>Conversion Rate:</span>
               <span
                 className={`font-bold ${
                   hoveredData.conversion_rate >= 0.05
@@ -129,8 +141,10 @@ export default function GeoTrafficMap({ geoTraffic = [] }) {
               </span>
             </div>
             <div className="flex justify-between border-t border-outline-variant/30 mt-1 pt-1">
-              <span>Top Segment:</span>
-              <span className="font-bold text-tertiary">{hoveredData.top_campaign}</span>
+              <span>Top Campaign:</span>
+              <span className="font-bold text-tertiary">
+                {hoveredData.top_campaign || 'N/A'}
+              </span>
             </div>
           </div>
         )}
@@ -138,13 +152,13 @@ export default function GeoTrafficMap({ geoTraffic = [] }) {
 
       <div className="absolute bottom-2 left-2 flex flex-wrap gap-2 text-[8px] font-mono uppercase bg-surface-container-high/60 backdrop-blur-sm p-1.5 rounded border border-outline-variant/30 pointer-events-none">
         <div className="flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span> High Conv
+          <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span> Low Fraud (&lt;15%)
         </div>
         <div className="flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#ffb783]"></span> Mid
+          <span className="w-1.5 h-1.5 rounded-full bg-[#ffb783]"></span> Medium Fraud (15-&lt;30%)
         </div>
         <div className="flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-error"></span> Fraud Spill
+          <span className="w-1.5 h-1.5 rounded-full bg-error"></span> High Fraud (≥30%)
         </div>
       </div>
     </div>

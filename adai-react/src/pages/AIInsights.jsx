@@ -4,77 +4,28 @@
 // for the selected prediction's campaign. All data comes from useAIInsight
 // (REST) and useAIInsightWebSocket (live feed); no mock data anywhere.
 
-import { useMemo, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { useState } from 'react'
 
 import { useAIInsight } from '@/hooks/useAIInsight'
 import { useAIInsightWebSocket } from '@/hooks/useAIInsightWebSocket'
+import { usePredictionShap } from '@/hooks/usePredictionShap'
 
 import LiveMetricsStrip          from '@/components/aiinsights/LiveMetricsStrip'
 import ModelStatusCards          from '@/components/aiinsights/ModelStatusCards'
 import ShapExplainerPanel        from '@/components/aiinsights/ShapExplainerPanel'
-import PredictionStreamFeed, { predictionKey } from '@/components/aiinsights/PredictionStreamFeed'
+import PredictionStreamFeed from '@/components/aiinsights/PredictionStreamFeed'
+import { predictionKey } from '@/utils/aiInsightsHelpers'
 import RecommendationExplanation from '@/components/aiinsights/RecommendationExplanation'
 import PerAdIntelligence         from '@/components/aiinsights/PerAdIntelligence'
 import AudienceSegmentCards      from '@/components/aiinsights/AudienceSegmentCards'
-import { useExpandableItems }    from '@/components/aiinsights/useExpandableItems'
-import { getInfraStatusColor }   from '@/utils/aiInsightsHelpers'
-
-function InfrastructureStrip({ services }) {
-  const { expanded, visibleItems, toggleExpanded } = useExpandableItems(services, 4)
-
-  if (!services || services.length === 0) return null
-
-  const hasMoreServices = services.length > 4
-
-  return (
-    <section className="space-y-3">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-gutter">
-        <AnimatePresence mode="popLayout">
-          {visibleItems.map((svc) => (
-            <motion.div
-              key={svc.service_name}
-              layout
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.2 }}
-              className="bg-surface-container-low border border-outline-variant rounded-xl p-3"
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-semibold text-on-surface truncate">{svc.service_name}</span>
-                <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${getInfraStatusColor(svc.status)}`}>
-                  {svc.status}
-                </span>
-              </div>
-              <p className="text-[10px] text-on-surface-variant font-mono">
-                {svc.latency.toFixed(0)}ms · {svc.uptime.toFixed(1)}% uptime
-              </p>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
-
-      {hasMoreServices && (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={toggleExpanded}
-            className="text-xs font-mono text-primary hover:text-primary/80"
-          >
-            {expanded ? 'View Less' : 'View More'}
-          </button>
-        </div>
-      )}
-    </section>
-  )
-}
 
 export default function AIInsights() {
   // ── Cross-component selection state ────────────────────────────────────────
   const [selectedPrediction, setSelectedPrediction] = useState(null)
   const [viewMode, setViewMode] = useState('business') // 'business' | 'ml'
   const [campaignId, setCampaignId] = useState(null)
+
+  const { liveData, connected, subscribeToPredictions } = useAIInsightWebSocket()
 
   const {
     overview,
@@ -83,14 +34,14 @@ export default function AIInsights() {
     shap,
     recommendations,
     audienceSegments,
-    infrastructure,
     campaignInsight,
     loading,
     error,
     refresh,
-  } = useAIInsight({ campaignId })
-
-  const { liveData, connected } = useAIInsightWebSocket()
+  } = useAIInsight({
+    campaignId,
+    onPrediction: subscribeToPredictions,
+  })
 
   const handlePredictionSelect = (prediction) => {
     setSelectedPrediction(prediction)
@@ -98,11 +49,7 @@ export default function AIInsights() {
   }
 
   const selectedKey = selectedPrediction ? predictionKey(selectedPrediction) : null
-
-  const selectedShapFeatures = useMemo(() => {
-    if (!selectedPrediction || !shap?.features) return []
-    return shap.features.filter((f) => f.campaign_name === selectedPrediction.campaign_name)
-  }, [selectedPrediction, shap])
+  const predictionShap = usePredictionShap(selectedPrediction?.prediction_id)
 
   // ── Loading / error states ───────────────────────────────────────────────────
   if (loading && !overview) {
@@ -148,14 +95,11 @@ export default function AIInsights() {
       {/* Section 2 — Model status cards */}
       <ModelStatusCards modelStatus={modelStatus} />
 
-      {/* Section 3 — Infrastructure health */}
-      <InfrastructureStrip services={infrastructure?.services} />
-
-      {/* Section 4 — SHAP Explainer (left) + Prediction Feed (right) */}
+      {/* Section 3 — SHAP Explainer (left) + Prediction Feed (right) */}
       <div className="grid grid-cols-12 gap-gutter">
         <ShapExplainerPanel
           selectedPrediction={selectedPrediction}
-          shapFeatures={selectedShapFeatures}
+          explanation={predictionShap}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
         />
@@ -166,17 +110,17 @@ export default function AIInsights() {
         />
       </div>
 
-      {/* Section 5 — Recommendation Explanations */}
+      {/* Section 4 — Recommendation Explanations */}
       <div className="grid grid-cols-12 gap-gutter">
         <RecommendationExplanation recommendations={recommendations?.recommendations} />
       </div>
 
-      {/* Section 6 — Audience Segments */}
+      {/* Section 5 — Audience Segments */}
       <div className="grid grid-cols-12 gap-gutter">
         <AudienceSegmentCards segments={audienceSegments?.segments} />
       </div>
 
-      {/* Section 7 — Per-Prediction Intelligence + campaign deep-dive */}
+      {/* Section 6 — Per-Prediction Intelligence + campaign deep-dive */}
       <PerAdIntelligence
         predictions={predictions?.predictions}
         shapFeatures={shap?.features}

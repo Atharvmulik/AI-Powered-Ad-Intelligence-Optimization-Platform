@@ -68,6 +68,74 @@ export type SystemHealthService = {
 
 export type Recommendation = { title: string; description?: string; priority?: string; action?: string }
 
+export type AiAdDecision = {
+  ad_id?: string | number | null
+  campaign_id?: string | number | null
+  campaign_name?: string | null
+  ctr?: number | null
+  ctr_change?: number | null
+  fraud_risk?: number | null
+  fraud_rate?: number | null
+  conversion_rate?: number | null
+  roas?: number | null
+  decision?: string | null
+  decision_score?: number | null
+  recommended_action?: string | null
+  reasons?: string[] | null
+  timestamp?: string | null
+}
+
+export type ModelMetric = {
+  name?: string | null
+  status?: 'healthy' | 'degraded' | 'no_data' | string | null
+  predictions?: number | null
+  prediction_count?: number | null
+  total_predictions?: number | null
+  average?: number | null
+  average_score?: number | null
+  min?: number | null
+  min_value?: number | null
+  max?: number | null
+  max_value?: number | null
+  range?: { min?: number | null; max?: number | null } | null
+  high_risk_count?: number | null
+  critical_count?: number | null
+  recommendations?: number | null
+  recommendation_count?: number | null
+  unique_ads?: number | null
+  avg_score?: number | null
+  [key: string]: unknown
+}
+
+export type ModelIntelligence = {
+  timestamp?: string | null
+  ctr_model?: ModelMetric | null
+  fraud_model?: ModelMetric | null
+  recommendation_engine?: ModelMetric | null
+  [key: string]: unknown
+}
+
+export type CampaignOpportunity = {
+  id?: string | number | null
+  campaign_id?: string | number | null
+  campaign_name?: string | null
+  status?: string | null
+  priority?: string | null
+  ctr?: number | null
+  conversion_rate?: number | null
+  fraud_rate?: number | null
+  roas?: number | null
+  reason?: string | null
+  recommended_action?: string | null
+  [key: string]: unknown
+}
+
+export type CampaignOpportunityResponse = {
+  timestamp?: string | null
+  opportunities?: CampaignOpportunity[] | null
+  [key: string]: unknown
+}
+
 export type WebSocketLivePayload = {
   timestamp: number
   event_type?: string
@@ -77,6 +145,9 @@ export type WebSocketLivePayload = {
   ctr?: number
   revenue?: number
   fraud_alert_count?: number
+  ai_decision?: AiAdDecision | null
+  model_intelligence?: ModelIntelligence | null
+  campaign_opportunities?: CampaignOpportunity[] | null
 }
 
 export type DashboardState = {
@@ -89,6 +160,12 @@ export type DashboardState = {
   fraudAlerts: FraudAlert[]
   infraStatus: SystemHealthService[]
   recommendations: Recommendation[]
+  aiAdDecision: AiAdDecision | null
+  modelIntelligence: ModelIntelligence | null
+  campaignOpportunities: CampaignOpportunity[]
   loading: boolean
   error: string | null
+  aiAdDecisionError: string | null
+  modelIntelligenceError: string | null
+  campaignOpportunitiesError: string | null
 }

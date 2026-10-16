@@ -133,11 +133,6 @@ body {
   border: 1px solid #464554;
 }
 
-/* Gauge ring transition */
-.gauge-ring {
-  transition: stroke-dashoffset 1s ease-out;
-}
-
 /* Terminal cursor */
 .terminal-cursor {
   display: inline-block;

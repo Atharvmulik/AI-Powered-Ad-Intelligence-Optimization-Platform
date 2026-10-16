@@ -61,7 +61,7 @@ class CTRInferenceAdapter:
             ctr_input = build_ctr_feature_dict(event)
             ctr_fields = {key: ctr_input.get(key) for key in [f"I{i}" for i in range(1, 14)] + [f"C{i}" for i in range(1, 27)]}
             log.info("[CTR RAW] user=%s ad=%s field_values=%s", event.get('user_id'), event.get('ad_id'), ctr_fields)
-            result = self.predictor.predict(ctr_input, include_shap=False)
+            result = self.predictor.predict(ctr_input, include_shap=True)
             latency_ms = (time.perf_counter() - start) * 1000
             result["inference_latency_ms"] = round(latency_ms, 2)
             result["prd_latency_ok"] = latency_ms < 30.0

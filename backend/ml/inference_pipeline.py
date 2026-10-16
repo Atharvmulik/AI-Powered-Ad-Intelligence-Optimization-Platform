@@ -27,12 +27,20 @@ import joblib
 import time
 import os
 import json
+import logging
 import warnings
 warnings.filterwarnings("ignore")
 
 import lightgbm as lgb
 import xgboost as xgb
-import shap
+
+logger = logging.getLogger(__name__)
+
+try:
+    import shap
+except Exception:
+    logger.exception("SHAP could not be imported; CTR inference will continue without explanations")
+    shap = None
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 ARTIFACTS_DIR = "ml/save_model"
@@ -95,18 +103,27 @@ class CTRPredictor:
 
         # ── SHAP explainers ───────────────────────────────────────────────────
         # TreeExplainer is fast for tree-based models (~1-2ms per prediction)
-        if self.xgb_model is not None:
-            self.xgb_explainer = shap.TreeExplainer(self.xgb_model)
-            print("  ✅  XGBoost SHAP explainer ready")
+        if shap is None:
+            logger.warning("SHAP explainers are unavailable; CTR predictions will have no attributions")
+        else:
+            if self.xgb_model is not None:
+                try:
+                    self.xgb_explainer = shap.TreeExplainer(self.xgb_model)
+                    print("  ✅  XGBoost SHAP explainer ready")
+                except Exception:
+                    logger.exception("Could not initialize the XGBoost SHAP explainer")
 
-        if self.lgb_model is not None:
-            self.lgb_explainer = shap.TreeExplainer(self.lgb_model)
-            bv = self.lgb_explainer.expected_value
-            if hasattr(bv, '__len__'):
-                self.base_value = float(bv[0])   # LGB native API returns size-1 array
-            else:
-                self.base_value = float(bv)
-            print("  ✅  LightGBM SHAP explainer ready")
+            if self.lgb_model is not None:
+                try:
+                    self.lgb_explainer = shap.TreeExplainer(self.lgb_model)
+                    bv = self.lgb_explainer.expected_value
+                    if hasattr(bv, '__len__'):
+                        self.base_value = float(bv[0])   # LGB native API returns size-1 array
+                    else:
+                        self.base_value = float(bv)
+                    print("  ✅  LightGBM SHAP explainer ready")
+                except Exception:
+                    logger.exception("Could not initialize the LightGBM SHAP explainer")
 
         # Load ensemble weights if available
         ens_path = f"{ARTIFACTS_DIR}/ensemble_weights.pkl"
@@ -194,6 +211,9 @@ class CTRPredictor:
         PRD Section 6: 'Every ad recommendation must include a
         SHAP-based explanation. SHAP explanation latency < 50ms.'
         """
+        if self.xgb_explainer is None and self.lgb_explainer is None:
+            return []
+
         try:
             # Use XGBoost explainer if available (slightly faster)
             if self.xgb_explainer is not None:
@@ -209,6 +229,7 @@ class CTRPredictor:
             feature_impacts = [
                 {
                     "feature"   : self.feature_cols[i],
+                    "feature_value": float(feature_vector[0][i]),
                     "shap_value": float(shap_vals[i]),
                     "impact"    : abs(float(shap_vals[i])),
                     "direction" : "increases" if shap_vals[i] > 0 else "decreases",
@@ -228,11 +249,9 @@ class CTRPredictor:
                           reverse=True)[:3]
             return top3
 
-        except Exception as e:
-            # SHAP failure should never crash inference — degrade gracefully
-            return [{"feature": "unavailable", "shap_value": 0.0,
-                     "impact": 0.0, "direction": "unknown",
-                     "plain_english": f"SHAP unavailable: {str(e)}"}]
+        except Exception:
+            logger.exception("CTR SHAP computation failed; returning no attribution")
+            return []
 
     # ── MAIN PREDICT METHOD ───────────────────────────────────────────────────
     def predict(self, event: dict,

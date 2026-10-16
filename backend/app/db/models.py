@@ -754,6 +754,11 @@ class MLPredictionLog(Base):
         autoincrement=True,
     )
 
+    event_id: Mapped[Optional[str]] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -798,6 +803,10 @@ class MLPredictionLog(Base):
     inference_latency_ms: Mapped[float] = mapped_column(
         Float,
         nullable=False,
+    )
+
+    __table_args__ = (
+        Index("uq_ml_prediction_logs_event_id", "event_id", unique=True),
     )
 
 
@@ -950,14 +959,31 @@ class ShapInsight(Base):
         index=True,
     )
 
+    prediction_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("ml_prediction_logs.prediction_id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
     feature_name: Mapped[str] = mapped_column(
         String(255),
         nullable=False,
     )
 
+    feature_value: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+    )
+
     shap_value: Mapped[float] = mapped_column(
         Float,
         nullable=False,
+    )
+
+    explanation_model: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
     )
 
     predicted_ctr: Mapped[Optional[float]] = mapped_column(
@@ -982,5 +1008,11 @@ class ShapInsight(Base):
             "ix_shap_campaign_feature",
             "campaign_id",
             "feature_name",
+        ),
+        Index(
+            "uq_shap_insights_prediction_feature",
+            "prediction_id",
+            "feature_name",
+            unique=True,
         ),
     )

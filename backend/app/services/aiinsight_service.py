@@ -17,6 +17,7 @@ Architecture notes
 from __future__ import annotations
 
 import logging
+from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
@@ -35,6 +36,8 @@ from app.schemas.aiinsight import (
     ModelStatusResponse,
     PredictionItem,
     PredictionResponse,
+    PredictionShapFeatureItem,
+    PredictionShapResponse,
     RecommendationItem,
     RecommendationResponse,
     ShapFeatureItem,
@@ -43,6 +46,11 @@ from app.schemas.aiinsight import (
 )
 
 logger = logging.getLogger(__name__)
+
+_ACTIVE_WINDOW = timedelta(minutes=15)
+_ACTIVITY_WINDOW = timedelta(hours=24)
+_AUDIENCE_WINDOW = timedelta(days=7)
+_NO_DATA_TIMESTAMP = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 # ---------------------------------------------------------------------------
 # Lazy model imports — prevents circular imports while keeping the service
@@ -96,6 +104,99 @@ def _parse_tags(raw) -> List[str]:
     return []
 
 
+def _extract_interest_values(raw: Optional[str]) -> List[str]:
+    """Split a user interest string into deterministic interest buckets."""
+    if not raw:
+        return []
+    values: List[str] = []
+    for chunk in str(raw).replace(";", ",").replace("|", ",").split(","):
+        value = chunk.strip().lower()
+        if value:
+            values.append(value)
+    return values
+
+
+def _normalise_device(raw: Optional[str]) -> str:
+    """Map a user device string to a platform-normalised device bucket."""
+    if raw is None:
+        return "unknown"
+    value = str(raw).strip().lower()
+    if value in {"mobile", "android", "iphone", "ios", "smartphone"}:
+        return "mobile"
+    if value in {"desktop", "windows", "mac", "linux", "laptop"}:
+        return "desktop"
+    if value in {"tablet", "ipad", "ipados"}:
+        return "tablet"
+    return "unknown"
+
+
+def _bucket_fraud_risk(score: Optional[float]) -> str:
+    """Map numeric fraud risk scores to the audit-friendly Low/Medium/High labels."""
+    if score is None:
+        return "Low"
+    value = float(score)
+    if value >= 0.7:
+        return "High"
+    if value >= 0.35:
+        return "Medium"
+    return "Low"
+
+
+def _humanise_interest(value: str) -> str:
+    """Turn an interest key into a stable user-facing title."""
+    tokens = [part.strip() for part in str(value).replace("_", " ").split() if part.strip()]
+    if not tokens:
+        return "Audience"
+    return " ".join(token.capitalize() for token in tokens)
+
+
+def _interest_icon(value: str) -> str:
+    """Return a material icon key for a detected interest."""
+    normalised = str(value).lower()
+    if "tech" in normalised or "technology" in normalised:
+        return "memory"
+    if "gaming" in normalised or "game" in normalised:
+        return "sports_esports"
+    if "sport" in normalised:
+        return "fitness_center"
+    if "fitness" in normalised or "health" in normalised:
+        return "monitor_heart"
+    if "travel" in normalised:
+        return "flight"
+    if "money" in normalised or "finance" in normalised:
+        return "payments"
+    if "fashion" in normalised:
+        return "checkroom"
+    return "group"
+
+
+def _as_utc_datetime(value: Optional[datetime]) -> Optional[datetime]:
+    """Normalize datetime values to timezone-aware UTC for comparisons."""
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _percentage_from_probability(value: Optional[float]) -> float:
+    """Convert a model probability in [0, 1] to a 0–100 percentage scale."""
+    if value is None:
+        return 0.0
+    probability = float(value)
+    if probability < 0.0 or probability > 1.0:
+        return 0.0
+    return round(probability * 100.0, 2)
+
+
+def _average_probability_percentage(values: List[Optional[float]]) -> float:
+    """Average a list of model probabilities and return the percentage-scale value."""
+    cleaned = [float(value) for value in values if value is not None and 0.0 <= float(value) <= 1.0]
+    if not cleaned:
+        return 0.0
+    return round((sum(cleaned) / len(cleaned)) * 100.0, 2)
+
+
 # ---------------------------------------------------------------------------
 # AIInsightService
 # ---------------------------------------------------------------------------
@@ -121,69 +222,9 @@ class AIInsightService:
         """
         Compute top-level KPI metrics for the AI Insight overview panel.
 
-        Returns
-        -------
-        OverviewResponse
-        """
-        (
-            AdCampaign, AdCreative, AudienceSegment, AudienceSegmentInsight,
-            ClickEvent, FraudEvent, InfrastructureMetric, MLPredictionLog,
-            RecommendationLog, ShapInsight, User,
-        ) = _models()
-        db = self._db
-        now = datetime.now(timezone.utc)
-
-        total_result = await db.execute(select(func.count()).select_from(MLPredictionLog))
-        total_predictions: int = total_result.scalar_one() or 0
-
-        ctr_result = await db.execute(select(func.avg(MLPredictionLog.click_probability)))
-        avg_ctr_raw: float = ctr_result.scalar_one() or 0.0
-        average_ctr_prediction: float = round(avg_ctr_raw * 100, 2)
-
-        fraud_result = await db.execute(select(func.avg(MLPredictionLog.fraud_probability)))
-        avg_fraud_raw: float = fraud_result.scalar_one() or 0.0
-        average_fraud_probability: float = round(avg_fraud_raw * 100, 2)
-
-        rec_result = await db.execute(select(func.avg(MLPredictionLog.recommendation_score)))
-        average_recommendation_score: float = round(rec_result.scalar_one() or 0.0, 2)
-
-        active_models_result = await db.execute(
-            select(func.count(func.distinct(MLPredictionLog.model_version)))
-        )
-        active_models: int = active_models_result.scalar_one() or 0
-
-        last_updated_result = await db.execute(select(func.max(MLPredictionLog.timestamp)))
-        last_updated: Optional[datetime] = last_updated_result.scalar_one()
-
-        return OverviewResponse(
-            total_predictions=total_predictions,
-            average_ctr_prediction=average_ctr_prediction,
-            average_fraud_probability=average_fraud_probability,
-            average_recommendation_score=average_recommendation_score,
-            active_models=active_models,
-            last_updated=last_updated or now,
-        )
-
-    # ------------------------------------------------------------------
-    # 2. Model Status
-    # ------------------------------------------------------------------
-
-    async def get_model_status(self) -> ModelStatusResponse:
-        """
-        Return one status card per distinct model version present in the
-        prediction logs.
-
-        Status is derived as 'Active' when the model has logged a
-        prediction in the last 15 minutes, otherwise 'Idle'.  Uptime is
-        derived as the percentage of the last 24 hourly buckets in which
-        the model produced at least one prediction.  Accuracy is derived
-        by matching predictions to observed click outcomes via
-        click_events on (user_id, ad_id, campaign_id); it is omitted when
-        no matching click events exist.
-
-        Returns
-        -------
-        ModelStatusResponse
+        The overview uses prediction rows from the current UTC calendar day for
+        the main totals and averages, while the live model count is based on the
+        last 15 minutes of activity to match the dashboard's active/live status.
         """
         (
             AdCampaign, AdCreative, AudienceSegment, AudienceSegmentInsight,
@@ -193,25 +234,95 @@ class AIInsightService:
         db = self._db
         now = datetime.now(timezone.utc)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        active_window = now - timedelta(minutes=15)
-        day_window = now - timedelta(hours=24)
+        recent_activity_start = now - _ACTIVE_WINDOW
+
+        total_result = await db.execute(
+            select(func.count())
+            .select_from(MLPredictionLog)
+            .where(MLPredictionLog.timestamp >= today_start)
+        )
+        total_predictions: int = total_result.scalar_one() or 0
+
+        ctr_result = await db.execute(
+            select(func.avg(MLPredictionLog.click_probability))
+            .where(MLPredictionLog.timestamp >= today_start)
+        )
+        avg_ctr_raw: float = ctr_result.scalar_one() or 0.0
+        average_ctr_prediction: float = round(avg_ctr_raw * 100, 2)
+
+        fraud_result = await db.execute(
+            select(func.avg(MLPredictionLog.fraud_probability))
+            .where(MLPredictionLog.timestamp >= today_start)
+        )
+        avg_fraud_raw: float = fraud_result.scalar_one() or 0.0
+        average_fraud_probability: float = round(avg_fraud_raw * 100, 2)
+
+        rec_result = await db.execute(
+            select(func.avg(MLPredictionLog.recommendation_score))
+            .where(MLPredictionLog.timestamp >= today_start)
+        )
+        average_recommendation_score: float = round(rec_result.scalar_one() or 0.0, 2)
+
+        active_models_result = await db.execute(
+            select(func.count(func.distinct(MLPredictionLog.model_version)))
+            .where(MLPredictionLog.timestamp >= recent_activity_start)
+        )
+        active_models: int = active_models_result.scalar_one() or 0
+
+        last_updated_result = await db.execute(
+            select(func.max(MLPredictionLog.timestamp))
+            .where(MLPredictionLog.timestamp >= today_start)
+        )
+        last_updated: datetime = last_updated_result.scalar_one() or _NO_DATA_TIMESTAMP
+
+        return OverviewResponse(
+            total_predictions=total_predictions,
+            average_ctr_prediction=average_ctr_prediction,
+            average_fraud_probability=average_fraud_probability,
+            average_recommendation_score=average_recommendation_score,
+            active_models=active_models,
+            last_updated=last_updated,
+        )
+
+    # ------------------------------------------------------------------
+    # 2. Model Status
+    # ------------------------------------------------------------------
+
+    async def get_model_status(self) -> ModelStatusResponse:
+        """
+        Return one status card per distinct model version observed in the last
+        24 hours. A model is Active only if it logged a prediction in the last
+        15 minutes; otherwise it is Idle. Uptime is derived from hourly activity
+        buckets in the last 24 hours; accuracy is computed only when valid
+        prediction/outcome joins exist in the click event data.
+        """
+        (
+            AdCampaign, AdCreative, AudienceSegment, AudienceSegmentInsight,
+            ClickEvent, FraudEvent, InfrastructureMetric, MLPredictionLog,
+            RecommendationLog, ShapInsight, User,
+        ) = _models()
+        db = self._db
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        active_window = now - _ACTIVE_WINDOW
+        day_window = now - _ACTIVITY_WINDOW
 
         base_result = await db.execute(
             select(
                 MLPredictionLog.model_version,
-                func.count().label("predictions_today"),
+                func.sum(case((MLPredictionLog.timestamp >= today_start, 1), else_=0)).label("predictions_today"),
                 func.avg(MLPredictionLog.inference_latency_ms).label("avg_latency"),
                 func.max(MLPredictionLog.timestamp).label("last_prediction_time"),
             )
-            .where(MLPredictionLog.timestamp >= today_start)
+            .where(MLPredictionLog.timestamp >= day_window)
             .group_by(MLPredictionLog.model_version)
+            .order_by(desc(func.max(MLPredictionLog.timestamp)))
         )
         base_rows = base_result.all()
 
         if not base_rows:
             return ModelStatusResponse(models=[])
 
-        # Uptime: distinct hourly buckets with activity in the last 24h.
         hour_bucket = func.date_trunc("hour", MLPredictionLog.timestamp)
         uptime_result = await db.execute(
             select(
@@ -223,7 +334,6 @@ class AIInsightService:
         )
         uptime_map: Dict[str, int] = {row.model_version: row.active_hours for row in uptime_result.all()}
 
-        # Accuracy: match predictions to click outcomes on shared keys.
         accuracy_result = await db.execute(
             select(
                 MLPredictionLog.model_version,
@@ -233,11 +343,11 @@ class AIInsightService:
                         (
                             (
                                 (MLPredictionLog.click_probability >= 0.5)
-                                & (ClickEvent.clicked == True)  # noqa: E712
+                                & (ClickEvent.actual_outcome == 1)
                             )
                             | (
                                 (MLPredictionLog.click_probability < 0.5)
-                                & (ClickEvent.clicked == False)  # noqa: E712
+                                & (ClickEvent.actual_outcome == 0)
                             ),
                             1,
                         ),
@@ -249,8 +359,11 @@ class AIInsightService:
                 ClickEvent,
                 (ClickEvent.user_id == MLPredictionLog.user_id)
                 & (ClickEvent.ad_id == MLPredictionLog.ad_id)
-                & (ClickEvent.campaign_id == MLPredictionLog.campaign_id),
+                & (ClickEvent.campaign_id == MLPredictionLog.campaign_id)
+                & (ClickEvent.timestamp >= MLPredictionLog.timestamp - timedelta(minutes=5))
+                & (ClickEvent.timestamp <= MLPredictionLog.timestamp + timedelta(minutes=5)),
             )
+            .where(MLPredictionLog.timestamp >= day_window)
             .group_by(MLPredictionLog.model_version)
         )
         accuracy_map: Dict[str, float] = {}
@@ -263,7 +376,12 @@ class AIInsightService:
         models: List[ModelStatusItem] = []
         for row in base_rows:
             version = row.model_version
-            last_prediction_time: datetime = row.last_prediction_time
+            last_prediction_time: Optional[datetime] = row.last_prediction_time
+            if last_prediction_time is not None:
+                if last_prediction_time.tzinfo is None:
+                    last_prediction_time = last_prediction_time.replace(tzinfo=timezone.utc)
+                else:
+                    last_prediction_time = last_prediction_time.astimezone(timezone.utc)
             status = "Active" if last_prediction_time and last_prediction_time >= active_window else "Idle"
             active_hours = uptime_map.get(version, 0)
             uptime = round(min(active_hours, 24) / 24 * 100, 2)
@@ -277,7 +395,7 @@ class AIInsightService:
                     average_latency=round(float(row.avg_latency or 0.0), 2),
                     uptime=uptime,
                     accuracy=accuracy_map.get(version),
-                    last_prediction_time=last_prediction_time or now,
+                    last_prediction_time=last_prediction_time or _NO_DATA_TIMESTAMP,
                 )
             )
 
@@ -310,6 +428,7 @@ class AIInsightService:
 
         result = await db.execute(
             select(
+                MLPredictionLog.prediction_id,
                 MLPredictionLog.timestamp,
                 AdCampaign.campaign_name,
                 MLPredictionLog.ad_id,
@@ -327,6 +446,7 @@ class AIInsightService:
 
         predictions = [
             PredictionItem(
+                prediction_id=row.prediction_id,
                 timestamp=row.timestamp,
                 campaign_name=row.campaign_name,
                 ad_id=row.ad_id,
@@ -377,6 +497,7 @@ class AIInsightService:
                 ShapInsight.created_at,
             )
             .outerjoin(AdCampaign, AdCampaign.campaign_id == ShapInsight.campaign_id)
+            .where(ShapInsight.prediction_id.is_(None))
             .order_by(desc(ShapInsight.created_at))
             .limit(limit)
         )
@@ -400,6 +521,48 @@ class AIInsightService:
             for row in rows
         ]
         return ShapResponse(features=features)
+
+    async def get_prediction_shap(
+        self,
+        prediction_id: int,
+    ) -> Optional[PredictionShapResponse]:
+        """Return genuine SHAP rows for one prediction, or None if it does not exist."""
+        from app.db.models import MLPredictionLog, ShapInsight  # noqa: PLC0415
+
+        prediction_result = await self._db.execute(
+            select(MLPredictionLog).where(MLPredictionLog.prediction_id == prediction_id)
+        )
+        prediction = prediction_result.scalar_one_or_none()
+        if prediction is None:
+            return None
+
+        shap_result = await self._db.execute(
+            select(
+                ShapInsight.feature_name,
+                ShapInsight.feature_value,
+                ShapInsight.shap_value,
+                ShapInsight.explanation_model,
+                ShapInsight.created_at,
+            )
+            .where(ShapInsight.prediction_id == prediction_id)
+            .order_by(desc(func.abs(ShapInsight.shap_value)))
+        )
+        features = [
+            PredictionShapFeatureItem(
+                feature_name=row.feature_name,
+                feature_value=row.feature_value,
+                shap_value=float(row.shap_value),
+                explanation_model=row.explanation_model,
+                created_at=row.created_at,
+            )
+            for row in shap_result.all()
+        ]
+        return PredictionShapResponse(
+            prediction_id=prediction.prediction_id,
+            model_version=prediction.model_version,
+            timestamp=prediction.timestamp,
+            features=features,
+        )
 
     # ------------------------------------------------------------------
     # 5. Recommendations
@@ -498,19 +661,12 @@ class AIInsightService:
         limit: Optional[int] = None,
     ) -> AudienceResponse:
         """
-        Return active audience segments joined with their top contributing
-        features from audience_segment_insights.
+        Return audience segments derived from persisted synthetic user behavior.
 
-        Parameters
-        ----------
-        top_features_limit : int
-            Max number of top contributing features to attach per segment.
-        limit : Optional[int]
-            Optional max number of audience segments to return.
-
-        Returns
-        -------
-        AudienceResponse
+        The synthetic pipeline generates rich user-level signals in `users` and
+        transactional outcomes in `click_events` / `fraud_events`. This endpoint
+        derives a deterministic, explainable segment list from those real rows
+        instead of relying on static segment snapshots.
         """
         (
             AdCampaign, AdCreative, AudienceSegment, AudienceSegmentInsight,
@@ -519,15 +675,163 @@ class AIInsightService:
         ) = _models()
         db = self._db
 
-        query = (
+        user_rows = await db.execute(
+            select(User.user_id, User.interests, User.device_type)
+        )
+        persisted_users = user_rows.all()
+
+        if persisted_users:
+            now = datetime.now(timezone.utc)
+            current_window_start = now - _AUDIENCE_WINDOW
+            previous_window_start = current_window_start - _AUDIENCE_WINDOW
+            current_window_start_db = current_window_start.replace(tzinfo=None)
+            previous_window_start_db = previous_window_start.replace(tzinfo=None)
+            now_db = now.replace(tzinfo=None)
+
+            user_interest_lookup: Dict[str, List[str]] = {}
+            for user_id, interests, device_type in persisted_users:
+                normalized_interests = _extract_interest_values(interests)
+                if not normalized_interests:
+                    continue
+                user_interest_lookup[str(user_id)] = normalized_interests
+
+            activity_rows = await db.execute(
+                select(ClickEvent.user_id, ClickEvent.timestamp)
+                .where(ClickEvent.timestamp >= previous_window_start_db)
+                .where(ClickEvent.timestamp <= now_db)
+            )
+
+            interest_buckets: Dict[str, Dict[str, object]] = {}
+            for user_id, event_timestamp in activity_rows.all():
+                user_key = str(user_id)
+                normalized_interests = user_interest_lookup.get(user_key, [])
+                if not normalized_interests:
+                    continue
+                event_dt = _as_utc_datetime(event_timestamp)
+                if event_dt is None:
+                    continue
+                for interest in normalized_interests:
+                    bucket = interest_buckets.setdefault(
+                        interest,
+                        {
+                            "users": set(),
+                            "current_users": set(),
+                            "previous_users": set(),
+                            "current_devices": Counter(),
+                        },
+                    )
+                    bucket["users"].add(user_key)
+                    if event_dt >= current_window_start:
+                        bucket["current_users"].add(user_key)
+                    elif event_dt >= previous_window_start:
+                        bucket["previous_users"].add(user_key)
+
+            if interest_buckets:
+                segment_items: List[AudienceInsightItem] = []
+                for interest, bucket in sorted(interest_buckets.items(), key=lambda item: (-len(item[1]["current_users"]), item[0])):
+                    current_user_ids = sorted(bucket["current_users"])
+                    previous_user_ids = sorted(bucket["previous_users"])
+                    current_reach = len(current_user_ids)
+                    previous_reach = len(previous_user_ids)
+
+                    if previous_reach > 0:
+                        growth_pct = ((current_reach - previous_reach) / previous_reach) * 100.0
+                    else:
+                        growth_pct = 0.0
+
+                    device_counts = Counter()
+                    for user_id, interests, device_type in persisted_users:
+                        user_key = str(user_id)
+                        if user_key not in current_user_ids:
+                            continue
+                        normalized_device = _normalise_device(device_type)
+                        if normalized_device != "unknown":
+                            device_counts[normalized_device] += 1
+
+                    total_devices = sum(device_counts.values())
+                    mobile_pct = round((device_counts.get("mobile", 0) / total_devices) * 100.0, 2) if total_devices else 0.0
+                    desktop_pct = round((device_counts.get("desktop", 0) / total_devices) * 100.0, 2) if total_devices else 0.0
+                    tablet_pct = round((device_counts.get("tablet", 0) / total_devices) * 100.0, 2) if total_devices else 0.0
+
+                    fraud_rows = await db.execute(
+                        select(FraudEvent.user_id, FraudEvent.fraud_score)
+                        .where(FraudEvent.user_id.in_(current_user_ids))
+                        .where(FraudEvent.timestamp >= current_window_start_db)
+                    )
+                    fraud_scores: List[float] = []
+                    for user_id, score in fraud_rows.all():
+                        if score is None:
+                            continue
+                        fraud_scores.append(float(score))
+                    avg_fraud_score = sum(fraud_scores) / len(fraud_scores) if fraud_scores else 0.0
+                    fraud_risk = _bucket_fraud_risk(avg_fraud_score)
+
+                    ctr_rows = await db.execute(
+                        select(MLPredictionLog.user_id, MLPredictionLog.click_probability)
+                        .where(MLPredictionLog.user_id.in_(current_user_ids))
+                        .where(MLPredictionLog.timestamp >= current_window_start_db)
+                    )
+                    prediction_probabilities: List[Optional[float]] = []
+                    for user_id, click_probability in ctr_rows.all():
+                        prediction_probabilities.append(float(click_probability) if click_probability is not None else None)
+                    avg_ctr = _average_probability_percentage(prediction_probabilities)
+
+
+                    dominant_device = "mobile" if mobile_pct >= max(desktop_pct, tablet_pct) else "desktop" if desktop_pct >= tablet_pct else "tablet"
+                    tags = [
+                        f"{_humanise_interest(interest)} audience",
+                    ]
+                    if mobile_pct >= 50:
+                        tags.append("Mobile-first")
+                    elif desktop_pct >= 50:
+                        tags.append("Desktop-heavy")
+                    if tablet_pct > 0:
+                        tags.append("Cross-device")
+                    if fraud_risk != "Low":
+                        tags.append("Fraud watch")
+                    if avg_ctr >= 10:
+                        tags.append("High CTR")
+
+                    top_features = [f"user_interest={interest}"]
+                    if dominant_device:
+                        top_features.append(f"device={dominant_device}")
+                    if len(top_features) < top_features_limit:
+                        top_features.extend([
+                            f"reach={current_reach}",
+                            f"active_window=7d",
+                        ][: max(0, top_features_limit - len(top_features))])
+
+                    segment_items.append(
+                        AudienceInsightItem(
+                            segment_name=f"{_humanise_interest(interest)} Audience",
+                            subtitle=f"Users interested in {_humanise_interest(interest).lower()}",
+                            icon=_interest_icon(interest),
+                            reach=current_reach,
+                            growth_pct=round(growth_pct, 2),
+                            mobile_pct=round(mobile_pct, 2),
+                            desktop_pct=round(desktop_pct, 2),
+                            tablet_pct=round(tablet_pct, 2),
+                            fraud_risk=fraud_risk,
+                            avg_ctr=round(avg_ctr, 2),
+                            tags=tags[:4],
+                            top_features=top_features[:top_features_limit],
+                        )
+                    )
+
+                segment_items.sort(key=lambda item: (-item.reach, item.segment_name.lower()))
+                if limit is not None:
+                    segment_items = segment_items[:limit]
+                return AudienceResponse(segments=segment_items)
+
+        static_query = (
             select(AudienceSegment)
             .where(AudienceSegment.is_active == True)  # noqa: E712
             .order_by(desc(AudienceSegment.reach))
         )
         if limit is not None:
-            query = query.limit(limit)
+            static_query = static_query.limit(limit)
 
-        segments_result = await db.execute(query)
+        segments_result = await db.execute(static_query)
         segments = segments_result.scalars().all()
 
         if not segments:
@@ -541,7 +845,6 @@ class AIInsightService:
         )
         insight_rows = insights_result.scalars().all()
 
-        # Group top contributing feature names per segment_id.
         features_by_segment: Dict[int, List[str]] = {}
         for insight in insight_rows:
             bucket = features_by_segment.setdefault(insight.segment_id, [])
@@ -692,6 +995,7 @@ class AIInsightService:
         shap_result = await db.execute(
             select(ShapInsight)
             .where(ShapInsight.campaign_id == campaign_id)
+            .where(ShapInsight.prediction_id.is_(None))
             .order_by(desc(func.abs(ShapInsight.shap_value)))
             .limit(5)
         )
@@ -775,9 +1079,8 @@ class AIInsightService:
         """
         Lightweight snapshot for the AI Insight WebSocket push loop.
 
-        Returns
-        -------
-        AIInsightLiveUpdate
+        The live feed mirrors the overview semantics for the current UTC day while
+        the active-model count reflects the last 15 minutes of prediction activity.
         """
         (
             AdCampaign, AdCreative, AudienceSegment, AudienceSegmentInsight,
@@ -787,6 +1090,7 @@ class AIInsightService:
         db = self._db
         now = datetime.now(timezone.utc)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        recent_activity_start = now - _ACTIVE_WINDOW
 
         total_today_result = await db.execute(
             select(func.count())
@@ -795,14 +1099,21 @@ class AIInsightService:
         )
         total_predictions_today: int = total_today_result.scalar_one() or 0
 
-        ctr_result = await db.execute(select(func.avg(MLPredictionLog.click_probability)))
+        ctr_result = await db.execute(
+            select(func.avg(MLPredictionLog.click_probability))
+            .where(MLPredictionLog.timestamp >= today_start)
+        )
         average_ctr_prediction: float = round((ctr_result.scalar_one() or 0.0) * 100, 2)
 
-        fraud_result = await db.execute(select(func.avg(MLPredictionLog.fraud_probability)))
+        fraud_result = await db.execute(
+            select(func.avg(MLPredictionLog.fraud_probability))
+            .where(MLPredictionLog.timestamp >= today_start)
+        )
         average_fraud_probability: float = round((fraud_result.scalar_one() or 0.0) * 100, 2)
 
         active_models_result = await db.execute(
             select(func.count(func.distinct(MLPredictionLog.model_version)))
+            .where(MLPredictionLog.timestamp >= recent_activity_start)
         )
         active_models: int = active_models_result.scalar_one() or 0
 

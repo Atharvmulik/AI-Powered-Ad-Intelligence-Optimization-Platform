@@ -3,8 +3,8 @@ WebSocket module for the AI Insight live-update feed.
 
 Endpoint : WS /ws/aiinsight/live
 
-Pushes an AIInsightLiveUpdate payload every 5 seconds to all connected clients.
-The ConnectionManager handles fan-out; each client gets its own push loop.
+Pushes a KPI snapshot every 5 seconds and delivers per-prediction events as soon
+as they are persisted and published by the synthetic pipeline.
 """
 
 from __future__ import annotations
@@ -12,12 +12,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Dict, Set
+from typing import Any, Dict, Set
 
 from fastapi import WebSocket, WebSocketDisconnect
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import AsyncSessionLocal
+from app.event_bus import aiinsight_event_bus
 from app.schemas.aiinsight import AIInsightLiveUpdate
 from app.services.aiinsight_service import AIInsightService
 
@@ -37,6 +37,8 @@ class AIInsightConnectionManager:
     def __init__(self) -> None:
         self._connections: Dict[str, WebSocket] = {}
         self._tasks: Dict[str, asyncio.Task] = {}  # type: ignore[type-arg]
+        self._event_tasks: Dict[str, asyncio.Task] = {}  # type: ignore[type-arg]
+        self._subscriber_queues: Dict[str, asyncio.Queue[str]] = {}
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -51,12 +53,17 @@ class AIInsightConnectionManager:
         return client_id
 
     def disconnect(self, client_id: str) -> None:
-        """Remove a client from the registry and cancel its push task."""
+        """Remove a client from the registry and cancel its push tasks."""
         self._connections.pop(client_id, None)
 
-        task = self._tasks.pop(client_id, None)
-        if task and not task.done():
-            task.cancel()
+        queue = self._subscriber_queues.pop(client_id, None)
+        if queue is not None:
+            aiinsight_event_bus.unsubscribe(queue)
+
+        for task_map in (self._tasks, self._event_tasks):
+            task = task_map.pop(client_id, None)
+            if task and not task.done():
+                task.cancel()
 
         logger.info("WS client disconnected: %s (total=%d)", client_id, len(self._connections))
 
@@ -64,7 +71,7 @@ class AIInsightConnectionManager:
     # Sending helpers
     # ------------------------------------------------------------------
 
-    async def send_json(self, client_id: str, payload: dict) -> bool:
+    async def send_json(self, client_id: str, payload: dict[str, Any]) -> bool:
         """Send a JSON payload to a single client."""
         websocket = self._connections.get(client_id)
         if websocket is None:
@@ -77,7 +84,7 @@ class AIInsightConnectionManager:
             self.disconnect(client_id)
             return False
 
-    async def broadcast(self, payload: dict) -> None:
+    async def broadcast(self, payload: dict[str, Any]) -> None:
         """Broadcast a JSON payload to all connected clients."""
         dead: Set[str] = set()
         for client_id, websocket in list(self._connections.items()):
@@ -95,12 +102,52 @@ class AIInsightConnectionManager:
     # ------------------------------------------------------------------
 
     def start_push_loop(self, client_id: str) -> None:
-        """Spawn an async push task for a single client."""
+        """Spawn the periodic KPI push task for a single client."""
+        if self._tasks.get(client_id) is not None and not self._tasks[client_id].done():
+            return
         task = asyncio.create_task(
             self._push_loop(client_id),
             name=f"aiinsight-push-{client_id}",
         )
         self._tasks[client_id] = task
+
+    def start_prediction_listener(self, client_id: str) -> None:
+        """Spawn the live prediction event listener for a single client."""
+        if client_id in self._subscriber_queues:
+            return
+        queue: asyncio.Queue[str] = aiinsight_event_bus.subscribe()
+        self._subscriber_queues[client_id] = queue
+        task = asyncio.create_task(
+            self._prediction_listener(client_id, queue),
+            name=f"aiinsight-events-{client_id}",
+        )
+        self._event_tasks[client_id] = task
+
+    async def _prediction_listener(self, client_id: str, queue: asyncio.Queue[str]) -> None:
+        """Consume published prediction events and forward them to the client."""
+        while client_id in self._connections:
+            try:
+                encoded = await asyncio.wait_for(queue.get(), timeout=1.0)
+            except asyncio.TimeoutError:
+                continue
+            except asyncio.CancelledError:
+                logger.debug("Prediction listener cancelled for client %s", client_id)
+                break
+
+            try:
+                payload = json.loads(encoded)
+                if not isinstance(payload, dict):
+                    continue
+                if payload.get("type") == "prediction_created":
+                    success = await self.send_json(client_id, payload)
+                    if not success:
+                        break
+                else:
+                    success = await self.send_json(client_id, {"type": "prediction_created", "data": payload})
+                    if not success:
+                        break
+            except Exception as exc:
+                logger.warning("Prediction event payload could not be decoded for client %s: %s", client_id, exc)
 
     async def _push_loop(self, client_id: str) -> None:
         """Internal coroutine: repeatedly fetch a live snapshot and push it."""
@@ -149,6 +196,7 @@ async def aiinsight_live_ws(websocket: WebSocket) -> None:
         logger.exception("Failed to send initial WS payload to %s: %s", client_id, exc)
 
     manager.start_push_loop(client_id)
+    manager.start_prediction_listener(client_id)
 
     try:
         while True:

@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -25,6 +25,7 @@ from app.schemas.aiinsight import (
     ModelStatusResponse,
     OverviewResponse,
     PredictionResponse,
+    PredictionShapResponse,
     RecommendationResponse,
     ShapResponse,
 )
@@ -129,6 +130,35 @@ async def get_predictions(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not retrieve predictions.",
+        ) from exc
+
+
+@router.get(
+    "/predictions/{prediction_id}/shap",
+    response_model=PredictionShapResponse,
+    summary="Prediction SHAP Explanation",
+    description="Returns genuine SHAP feature attributions for one stored prediction.",
+    status_code=status.HTTP_200_OK,
+)
+async def get_prediction_shap(
+    prediction_id: int = Path(..., ge=1, description="Persisted prediction identifier"),
+    service: AIInsightService = Depends(get_aiinsight_service),
+) -> PredictionShapResponse:
+    try:
+        explanation = await service.get_prediction_shap(prediction_id)
+        if explanation is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Prediction not found.",
+            )
+        return explanation
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to fetch SHAP explanation for prediction %d", prediction_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not retrieve prediction explanation.",
         ) from exc
 
 

@@ -849,6 +849,7 @@ class DashboardService:
         shap_rows = (await self._db.execute(
             select(ShapInsight.feature_name, ShapInsight.shap_value)
             .where(ShapInsight.campaign_id == campaign_id)
+            .where(ShapInsight.prediction_id.is_(None))
             .order_by(desc(func.abs(ShapInsight.shap_value)))
             .limit(10)
         )).all()

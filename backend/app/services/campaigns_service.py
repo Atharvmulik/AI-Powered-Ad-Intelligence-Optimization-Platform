@@ -638,9 +638,11 @@ class CampaignsService:
                         AVG(si.shap_value)     AS avg_shap_value
                     FROM shap_insights si
                     JOIN ad_campaigns ac ON ac.campaign_id = si.campaign_id
-                    WHERE si.campaign_id IN (
+                    WHERE si.prediction_id IS NULL
+                      AND si.campaign_id IN (
                         SELECT campaign_id
                         FROM shap_insights
+                        WHERE prediction_id IS NULL
                         GROUP BY campaign_id
                         ORDER BY AVG(predicted_ctr) DESC, AVG(auc_score) DESC
                         LIMIT 6

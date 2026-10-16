@@ -8,7 +8,7 @@ conventions as app/schemas/dashboard.py.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -74,6 +74,7 @@ class PredictionItem(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    prediction_id: int
     timestamp: datetime
     campaign_name: Optional[str] = None
     ad_id: str
@@ -115,6 +116,27 @@ class ShapResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     features: List[ShapFeatureItem] = Field(default_factory=list)
+
+
+class PredictionShapFeatureItem(BaseModel):
+    """A genuine SHAP attribution for one stored prediction."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    feature_name: str
+    feature_value: Optional[float] = None
+    shap_value: float
+    explanation_model: Optional[str] = None
+    created_at: datetime
+
+
+class PredictionShapResponse(BaseModel):
+    """SHAP explanation rows belonging to one persisted prediction."""
+
+    prediction_id: int
+    model_version: str
+    timestamp: datetime
+    features: List[PredictionShapFeatureItem] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -230,3 +252,12 @@ class AIInsightLiveUpdate(BaseModel):
     average_fraud_probability: float = Field(..., ge=0.0, le=100.0)
     active_models: int = Field(..., ge=0)
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AIInsightWebSocketEnvelope(BaseModel):
+    """Envelope used for AI Insight live events over WebSocket."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    type: str = Field(..., description="Message kind: kpi_snapshot or prediction_created")
+    data: dict[str, Any] = Field(default_factory=dict, description="Event payload")

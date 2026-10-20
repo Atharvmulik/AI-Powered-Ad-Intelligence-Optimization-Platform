@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, date
 from typing import Optional, List
-
+import jwt
 from sqlalchemy import (
     Boolean,
     Date,
@@ -1015,4 +1015,44 @@ class ShapInsight(Base):
             "feature_name",
             unique=True,
         ),
+    )
+
+
+
+# ---------------------------------------------------------------------------
+# authorized_users — application login accounts
+# ---------------------------------------------------------------------------
+
+class AuthorizedUser(Base):
+    __tablename__ = "authorized_users"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    email: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    password_hash: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
     )

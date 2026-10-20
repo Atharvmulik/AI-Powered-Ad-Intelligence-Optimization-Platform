@@ -37,6 +37,7 @@ from app.api.v1.campaigns import router as campaigns_router
 from app.websocket.campaigns_ws import router as campaigns_ws_router
 from app.websocket.analytics_ws import router as analytics_ws_router
 from app.api.v1.analytics import router as analytics_router
+from app.api.v1.auth import router as auth_router
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -132,6 +133,7 @@ def create_app() -> FastAPI:
     application.include_router(campaigns_ws_router)
     application.include_router(analytics_ws_router)
     application.include_router(analytics_router, prefix="/api/v1")
+    application.include_router(auth_router, prefix="/api/v1")
 
 
     # ── Global exception handler ─────────────────────────────────────────
